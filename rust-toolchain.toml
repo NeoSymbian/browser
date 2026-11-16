@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# = Servo v0.8.0's toolchain.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]
