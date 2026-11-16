@@ -23,6 +23,8 @@ use crate::out::{Out, Row};
 const JS_POLL: Duration = Duration::from_millis(250);
 /// A scroll step ends once no frame has been painted for this long.
 const SCROLL_QUIET: Duration = Duration::from_millis(600);
+/// …or at the latest after this long, for pages that animate continuously.
+const SCROLL_MAX: Duration = Duration::from_secs(5);
 /// Time given to input to take effect before the next step.
 const INPUT_SETTLE: Duration = Duration::from_millis(400);
 
@@ -56,7 +58,7 @@ enum Wait {
     Mem(mpsc::Receiver<MemoryReportResult>, String),
 }
 
-type JsResult = Rc<RefCell<Option<Option<JSValue>>>>;
+type JsResult = Rc<RefCell<Option<Result<JSValue, String>>>>;
 
 pub struct Exec {
     wf: Workflow,
@@ -150,7 +152,7 @@ impl Exec {
             Action::Tap { sel } => Some(Wait::Js {
                 expr: format!(
                     "(() => {{ const e = document.querySelector({}); if (!e) return null; \
-                     e.scrollIntoView({{block: 'center'}}); const r = e.getBoundingClientRect(); \
+                     try {{ e.scrollIntoView({{block: 'center'}}); }} catch (_) {{ e.scrollIntoView(); }} const r = e.getBoundingClientRect(); \
                      return [r.x + r.width / 2, r.y + r.height / 2]; }})()",
                     quote(&sel)
                 ),
@@ -227,7 +229,10 @@ impl Exec {
             Wait::Until(t) => Ok((now < t).then_some(Wait::Until(t))),
             Wait::Quiet { frames, since } => {
                 let painted = cx.state.frames.get();
-                if painted != frames {
+                if now.duration_since(self.step_start) >= SCROLL_MAX {
+                    // The page keeps animating (frames never stop): the scroll is done, the frames are counted.
+                    Ok(None)
+                } else if painted != frames {
                     Ok(Some(Wait::Quiet {
                         frames: painted,
                         since: now,
@@ -251,8 +256,9 @@ impl Exec {
                 if let Some(result) = self.js.borrow_mut().take() {
                     self.js_inflight = false;
                     match (tap, result) {
-                        (false, Some(JSValue::Boolean(true))) => return Ok(None),
-                        (true, Some(JSValue::Array(xy))) => {
+                        (_, Err(e)) => return Err(format!("JavaScript: {e}")),
+                        (false, Ok(JSValue::Boolean(true))) => return Ok(None),
+                        (true, Ok(JSValue::Array(xy))) => {
                             if let [JSValue::Number(x), JSValue::Number(y)] = xy[..] {
                                 touch_tap(cx, x as f32, y as f32);
                                 return Ok(Some(Wait::Until(now + INPUT_SETTLE)));
@@ -265,8 +271,9 @@ impl Exec {
                     self.js_inflight = true;
                     self.next_js = now + JS_POLL;
                     let slot = self.js.clone();
-                    cx.webview
-                        .evaluate_javascript(&expr, move |r| *slot.borrow_mut() = Some(r.ok()));
+                    cx.webview.evaluate_javascript(&expr, move |r| {
+                        *slot.borrow_mut() = Some(r.map_err(|e| format!("{e:?}")))
+                    });
                 }
                 Ok(Some(Wait::Js { expr, tap }))
             }

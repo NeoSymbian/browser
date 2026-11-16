@@ -1,0 +1,6 @@
+{ "name": "wiki-idle", "url": "https://en.wikipedia.org/wiki/Symbian",
+  "steps": [
+    { "do": "wait_load" }, { "do": "mem", "name": "m000" }, { "do": "shot", "name": "loaded" },
+    { "do": "sleep", "ms": 30000 }, { "do": "mem", "name": "m030" },
+    { "do": "sleep", "ms": 30000 }, { "do": "mem", "name": "m060" },
+    { "do": "sleep", "ms": 60000 }, { "do": "mem", "name": "m120" } ] }

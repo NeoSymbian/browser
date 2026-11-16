@@ -4,6 +4,7 @@
 //!
 //! neoweb-host (--workflow FILE | URL) [--gl mesa] [--size 1080x2160] [--dpr 2.75] [--out DIR]
 //!             [--pref NAME=VALUE]... [--jit] [--soak SECS] [--timeout SECS] [--fb /dev/fb0]
+//!             [--paint-interval MS]   (paint at most this often; screenshots always paint; default: every frame)
 //!
 //! Exit codes: 0 all required steps passed, 1 a step failed, 2 timeout, 3 Servo crashed, 64 bad arguments.
 
@@ -51,6 +52,7 @@ struct Args {
     soak: Option<Duration>,
     timeout: Duration,
     fb: Option<PathBuf>,
+    paint_interval: Duration,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -69,6 +71,7 @@ fn parse_args() -> Result<Args, String> {
         soak: None,
         timeout: Duration::from_secs(900),
         fb: None,
+        paint_interval: Duration::ZERO,
     };
     let mut it = std::env::args().skip(1);
     let secs = |v: String| {
@@ -100,6 +103,11 @@ fn parse_args() -> Result<Args, String> {
             "--soak" => a.soak = Some(secs(value()?)?),
             "--timeout" => a.timeout = secs(value()?)?,
             "--fb" => a.fb = Some(value()?.into()),
+            "--paint-interval" => {
+                let v = value()?;
+                a.paint_interval =
+                    Duration::from_millis(v.parse().map_err(|_| format!("--paint-interval {v}"))?);
+            }
             url if !url.starts_with('-') && a.workflow.url.is_empty() => {
                 let step = |action| Step {
                     action,
@@ -238,9 +246,12 @@ fn main() -> ExitCode {
     let mut exec = Exec::new(args.workflow, args.soak);
     let started = Instant::now();
     let mut last_blit = started;
+    let mut last_paint: Option<Instant> = None;
     let code = loop {
         servo.spin_event_loop();
-        if state.frame_ready.replace(false) {
+        let due = last_paint.is_none_or(|t| t.elapsed() >= args.paint_interval);
+        if due && state.frame_ready.replace(false) {
+            last_paint = Some(Instant::now());
             webview.paint();
             ctx.present();
             let now = Instant::now();
