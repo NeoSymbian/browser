@@ -1,0 +1,10 @@
+{ "name": "todomvc", "url": "https://todomvc.com/examples/react/dist/",
+  "steps": [
+    { "do": "wait_load" }, { "do": "wait_sel", "sel": ".new-todo" }, { "do": "tap", "sel": ".new-todo" },
+    { "do": "type", "text": "buy milk" }, { "do": "key", "key": "Enter" },
+    { "do": "type", "text": "port servo" }, { "do": "key", "key": "Enter" },
+    { "do": "type", "text": "measure memory" }, { "do": "key", "key": "Enter" },
+    { "do": "wait_js", "js": "document.querySelectorAll('.todo-list li').length === 3" },
+    { "do": "tap", "sel": ".todo-list li .toggle" },
+    { "do": "wait_js", "js": "(document.querySelector('.todo-count') || {}).textContent.includes('2')" },
+    { "do": "shot", "name": "todos" }, { "do": "mem", "name": "end" } ] }

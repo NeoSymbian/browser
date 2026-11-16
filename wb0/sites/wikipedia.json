@@ -1,0 +1,9 @@
+{ "name": "wikipedia", "url": "https://en.wikipedia.org/wiki/Symbian",
+  "steps": [
+    { "do": "wait_load" }, { "do": "wait_sel", "sel": "#firstHeading" }, { "do": "shot", "name": "article" },
+    { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 },
+    { "do": "shot", "name": "scrolled" }, { "do": "mem", "name": "article" },
+    { "do": "nav", "url": "https://en.wikipedia.org/wiki/Special:Search" }, { "do": "wait_load" },
+    { "do": "tap", "sel": "#searchText input" }, { "do": "type", "text": "Nokia N8" }, { "do": "key", "key": "Enter" },
+    { "do": "wait_js", "js": "document.title.includes('Nokia N8')" }, { "do": "shot", "name": "search" },
+    { "do": "mem", "name": "end" } ] }

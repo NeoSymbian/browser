@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: Apache-2.0
+# WB0 Mesa matrix (passes A-E, I, G). Columns: id site gl dpr cap va probe soak — see wb0/matrix.sh.
+# A: phone layout, 1 GiB, two repeats
+A1-wikipedia wikipedia mesa 2.75 1G - - -
+A1-duckduckgo duckduckgo mesa 2.75 1G - - -
+A1-github github mesa 2.75 1G - - -
+A1-stackoverflow stackoverflow mesa 2.75 1G - - -
+A1-bbc bbc mesa 2.75 1G - - -
+A1-wordpress wordpress mesa 2.75 1G - - -
+A1-todomvc todomvc mesa 2.75 1G - - -
+A1-youtube youtube mesa 2.75 1G - - -
+A1-gmail gmail mesa 2.75 1G - - -
+A1-gdocs gdocs mesa 2.75 1G - - -
+A2-wikipedia wikipedia mesa 2.75 1G - - -
+A2-duckduckgo duckduckgo mesa 2.75 1G - - -
+A2-github github mesa 2.75 1G - - -
+A2-stackoverflow stackoverflow mesa 2.75 1G - - -
+A2-bbc bbc mesa 2.75 1G - - -
+A2-wordpress wordpress mesa 2.75 1G - - -
+A2-todomvc todomvc mesa 2.75 1G - - -
+A2-youtube youtube mesa 2.75 1G - - -
+A2-gmail gmail mesa 2.75 1G - - -
+A2-gdocs gdocs mesa 2.75 1G - - -
+# B: 512 MiB
+B-wikipedia wikipedia mesa 2.75 512M - - -
+B-duckduckgo duckduckgo mesa 2.75 512M - - -
+B-github github mesa 2.75 512M - - -
+B-stackoverflow stackoverflow mesa 2.75 512M - - -
+B-bbc bbc mesa 2.75 512M - - -
+B-wordpress wordpress mesa 2.75 512M - - -
+B-todomvc todomvc mesa 2.75 512M - - -
+B-youtube youtube mesa 2.75 512M - - -
+B-gmail gmail mesa 2.75 512M - - -
+B-gdocs gdocs mesa 2.75 512M - - -
+# C: phone VA (2 GiB)
+C-wikipedia wikipedia mesa 2.75 1G 2097152 - -
+C-duckduckgo duckduckgo mesa 2.75 1G 2097152 - -
+C-github github mesa 2.75 1G 2097152 - -
+C-stackoverflow stackoverflow mesa 2.75 1G 2097152 - -
+C-bbc bbc mesa 2.75 1G 2097152 - -
+C-wordpress wordpress mesa 2.75 1G 2097152 - -
+C-todomvc todomvc mesa 2.75 1G 2097152 - -
+C-youtube youtube mesa 2.75 1G 2097152 - -
+C-gmail gmail mesa 2.75 1G 2097152 - -
+C-gdocs gdocs mesa 2.75 1G 2097152 - -
+# D: desktop layout
+D-wikipedia wikipedia mesa 1 1G - - -
+D-duckduckgo duckduckgo mesa 1 1G - - -
+D-github github mesa 1 1G - - -
+D-stackoverflow stackoverflow mesa 1 1G - - -
+D-bbc bbc mesa 1 1G - - -
+D-wordpress wordpress mesa 1 1G - - -
+D-todomvc todomvc mesa 1 1G - - -
+D-youtube youtube mesa 1 1G - - -
+D-gmail gmail mesa 1 1G - - -
+D-gdocs gdocs mesa 1 1G - - -
+# E: stack peaks (no cap; memory numbers not valid)
+E-wikipedia wikipedia mesa 2.75 max - stack -
+E-duckduckgo duckduckgo mesa 2.75 max - stack -
+E-github github mesa 2.75 max - stack -
+E-stackoverflow stackoverflow mesa 2.75 max - stack -
+E-bbc bbc mesa 2.75 max - stack -
+E-wordpress wordpress mesa 2.75 max - stack -
+E-todomvc todomvc mesa 2.75 max - stack -
+E-youtube youtube mesa 2.75 max - stack -
+E-gmail gmail mesa 2.75 max - stack -
+E-gdocs gdocs mesa 2.75 max - stack -
+# I: llvmpipe reference
+I-wikipedia wikipedia llvmpipe 2.75 1G - - -
+# G: 30-minute soaks
+G-wikipedia wikipedia mesa 2.75 1G - - 1800
+G-bbc bbc mesa 2.75 1G - - 1800

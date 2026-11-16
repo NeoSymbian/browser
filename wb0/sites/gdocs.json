@@ -1,0 +1,14 @@
+{ "name": "gdocs", "url": "https://docs.google.com/document/u/0/",
+  "steps": [
+    { "do": "wait_load" }, { "do": "shot", "name": "landing" },
+    { "do": "wait_sel", "sel": "#identifierId", "timeout_ms": 180000 },
+    { "do": "tap", "sel": "#identifierId" }, { "do": "type", "text": "${WB0_G_USER}", "secret": true },
+    { "do": "key", "key": "Enter" },
+    { "do": "wait_sel", "sel": "input[type=password]", "timeout_ms": 180000 }, { "do": "tap", "sel": "input[type=password]" },
+    { "do": "type", "text": "${WB0_G_PASS}", "secret": true }, { "do": "key", "key": "Enter" },
+    { "do": "wait_js", "js": "location.host === 'docs.google.com'", "timeout_ms": 300000 },
+    { "do": "nav", "url": "${WB0_G_DOC}" }, { "do": "wait_load" },
+    { "do": "wait_sel", "sel": ".kix-appview-editor, .kix-canvas-tile-content", "timeout_ms": 300000 },
+    { "do": "type", "text": "Typed by Servo on armv7. " },
+    { "do": "wait_js", "js": "/saved/i.test(document.body.innerText)", "timeout_ms": 180000 },
+    { "do": "shot", "name": "doc" }, { "do": "mem", "name": "end" } ] }

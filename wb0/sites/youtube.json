@@ -1,0 +1,9 @@
+{ "name": "youtube", "url": "https://m.youtube.com/watch?v=jNQXAC9IVRw",
+  "steps": [
+    { "do": "wait_load" }, { "do": "tap", "sel": "button[aria-label*=\"Accept\"]", "optional": true, "timeout_ms": 10000 },
+    { "do": "wait_sel", "sel": "ytm-slim-video-metadata-section-renderer", "timeout_ms": 180000 },
+    { "do": "shot", "name": "watch" }, { "do": "scroll", "dy": 1500 }, { "do": "shot", "name": "below" },
+    { "do": "mem", "name": "watch" },
+    { "do": "nav", "url": "https://m.youtube.com/results?search_query=servo+browser" }, { "do": "wait_load" },
+    { "do": "wait_sel", "sel": "ytm-video-with-context-renderer", "timeout_ms": 180000 },
+    { "do": "shot", "name": "results" }, { "do": "mem", "name": "end" } ] }

@@ -1,0 +1,7 @@
+{ "name": "wordpress", "url": "https://wordpress.org/news/",
+  "steps": [
+    { "do": "wait_load" }, { "do": "wait_sel", "sel": ".wp-block-post-title a" }, { "do": "shot", "name": "blog" },
+    { "do": "tap", "sel": ".wp-block-post-title a" },
+    { "do": "wait_js", "js": "location.pathname.split('/').filter(Boolean).length > 2 && !!document.querySelector('main h1, .wp-block-post-title')" },
+    { "do": "shot", "name": "post" }, { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 },
+    { "do": "shot", "name": "scrolled" }, { "do": "mem", "name": "end" } ] }

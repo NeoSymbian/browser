@@ -1,0 +1,7 @@
+{ "name": "stackoverflow", "url": "https://stackoverflow.com/questions/tagged/rust",
+  "steps": [
+    { "do": "wait_load" }, { "do": "wait_sel", "sel": ".s-post-summary--content-title a" }, { "do": "shot", "name": "list" },
+    { "do": "scroll", "dy": 1200 }, { "do": "tap", "sel": ".s-post-summary--content-title a" },
+    { "do": "wait_js", "js": "/^\\/questions\\/\\d+/.test(location.pathname) && !!document.querySelector('.js-post-body, .s-prose')" },
+    { "do": "shot", "name": "question" }, { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 },
+    { "do": "shot", "name": "answers" }, { "do": "mem", "name": "end" } ] }

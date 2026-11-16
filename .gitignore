@@ -1,2 +1,3 @@
 /out/
-/target/
+# Cargo build dirs at any depth (crates/*/target from Mac host builds)
+target/

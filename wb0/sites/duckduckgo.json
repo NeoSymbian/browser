@@ -1,0 +1,8 @@
+{ "name": "duckduckgo", "url": "https://duckduckgo.com/",
+  "steps": [
+    { "do": "wait_load" }, { "do": "wait_sel", "sel": "textarea, input[name=q]" }, { "do": "shot", "name": "home" },
+    { "do": "tap", "sel": "textarea, input[name=q]" }, { "do": "type", "text": "servo browser engine" },
+    { "do": "key", "key": "Enter" },
+    { "do": "wait_js", "js": "location.search.includes('q=') && !!document.querySelector('article, [data-testid=result], .result')", "timeout_ms": 180000 },
+    { "do": "shot", "name": "results" }, { "do": "scroll", "dy": 1200 }, { "do": "scroll", "dy": 1200 },
+    { "do": "shot", "name": "scrolled" }, { "do": "mem", "name": "end" } ] }

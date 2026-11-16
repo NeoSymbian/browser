@@ -1,0 +1,8 @@
+{ "name": "github", "url": "https://github.com/servo/servo",
+  "steps": [
+    { "do": "wait_load" }, { "do": "wait_sel", "sel": "article.markdown-body" }, { "do": "shot", "name": "repo" },
+    { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 },
+    { "do": "shot", "name": "readme" }, { "do": "mem", "name": "repo" },
+    { "do": "tap", "sel": "a[href=\"/servo/servo/issues\"]" },
+    { "do": "wait_js", "js": "location.pathname.endsWith('/issues') && document.querySelectorAll('a[href*=\"/servo/servo/issues/\"]').length > 3", "timeout_ms": 180000 },
+    { "do": "shot", "name": "issues" }, { "do": "mem", "name": "end" } ] }

@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Headless Servo embedder for WB0: runs a site workflow and writes steps.csv, PNGs and memory reports.
+# The seed of NEOWEB.EXE's embedder (WB4).
+[package]
+name = "neoweb-host"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[features]
+# For the WB0 interpreter-vs-JIT comparison build only.
+js_jit = ["servo/js_jit"]
+
+[dependencies]
+servo = { path = "/servo/components/servo", default-features = false, features = ["bundled", "subtlecrypto"] }
+servo_base = { package = "servo-base", path = "/servo/components/shared/base" }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "logging", "std", "tls12"] }
+url = "2.5"
+euclid = "0.22"
+dpi = "0.1"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde_json = "1"
+wb0-workflow = { path = "../wb0-workflow" }

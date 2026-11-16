@@ -1,0 +1,9 @@
+{ "name": "bbc", "url": "https://www.bbc.com/news",
+  "steps": [
+    { "do": "wait_load" }, { "do": "tap", "sel": "#onetrust-accept-btn-handler, button.fc-cta-consent", "optional": true, "timeout_ms": 10000 },
+    { "do": "wait_sel", "sel": "main h2" }, { "do": "shot", "name": "front" },
+    { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 }, { "do": "scroll", "dy": 1500 },
+    { "do": "shot", "name": "scrolled" }, { "do": "mem", "name": "front" },
+    { "do": "tap", "sel": "main a:has(h2)" },
+    { "do": "wait_js", "js": "location.pathname !== '/news' && !!document.querySelector('article, main h1')" },
+    { "do": "shot", "name": "article" }, { "do": "mem", "name": "end" } ] }

@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# The browser's Servo-linked crates. Built only in the cross container (tools/xbuild.sh neoweb|check): `servo` comes
+# by path from the v0.8.0 checkout in /servo, and the patched mozjs_sys from /target/patched (see patches/).
+# wb0-workflow is its own workspace so it builds and tests natively.
+[workspace]
+resolver = "2"
+members = ["neoweb-host"]
+exclude = ["wb0-workflow"]
+
+[patch.crates-io]
+mozjs_sys = { path = "/target/patched/mozjs_sys" }
