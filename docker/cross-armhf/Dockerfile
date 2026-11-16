@@ -29,11 +29,15 @@ RUN for t in gcc g++; do \
       printf '#!/bin/sh\nexec /usr/bin/arm-linux-gnueabihf-%s -mfpu=vfpv3-d16 "$@"\n' $t \
         > /usr/local/bin/armv7-$t && chmod +x /usr/local/bin/armv7-$t; done
 
+# ARM EABI keeps type_info::operator== out of line; SpiderMonkey's hidden-visibility system-header wrappers then
+# leave a hidden undefined reference that fails the final link. Inline equality (a name compare) avoids it.
+# GCC predefines it as 0 on ARM: -U first, since a redefinition warning makes cc-rs drop flags like -fno-rtti.
 ENV CARGO_HOME=/cargo \
     CC_armv7_unknown_linux_gnueabihf=armv7-gcc \
     CXX_armv7_unknown_linux_gnueabihf=armv7-g++ \
     AR_armv7_unknown_linux_gnueabihf=arm-linux-gnueabihf-ar \
     CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc \
+    CXXFLAGS_armv7_unknown_linux_gnueabihf="-U__GXX_TYPEINFO_EQUALITY_INLINE -D__GXX_TYPEINFO_EQUALITY_INLINE=1" \
     HOST_CC=gcc HOST_CXX=g++ LIBCLANG_PATH=/usr/lib/llvm-19/lib \
     MOZJS_FROM_SOURCE=1 PYTHON3=python3 PKG_CONFIG_ALLOW_CROSS=1 \
     PKG_CONFIG_LIBDIR_armv7_unknown_linux_gnueabihf=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig \

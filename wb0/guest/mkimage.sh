@@ -22,5 +22,6 @@ docker export "$cid" > "$OUT/rootfs.tar"
 docker run --rm --platform linux/arm64 -v "$PWD/$OUT":/out debian:trixie bash -euo pipefail -c "
   apt-get update -qq && apt-get install -y -qq e2fsprogs >/dev/null
   mkdir /r && tar -xpf /out/rootfs.tar -C /r && rm /out/rootfs.tar
+  ln -sf ../run/systemd/resolve/stub-resolv.conf /r/etc/resolv.conf   # docker export leaves its own
   rm -f /out/rootfs.img && truncate -s $SIZE /out/rootfs.img && mkfs.ext4 -q -d /r -L wb0 /out/rootfs.img"
 ls -lh "$OUT"

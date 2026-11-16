@@ -9,13 +9,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libfontconfig1 libfreetype6 libdbus-1-3 libudev1 libglib2.0-0t64 \
       libx11-6 libxmu6 libxcb-render0 libxcb-shape0 libxcb-xfixes0 libxkbcommon0 libxkbcommon-x11-0 \
       libwayland-client0 libwayland-egl1 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri zlib1g \
+      cage seatd libwayland-cursor0 xkb-data \
     && rm -rf /var/lib/apt/lists/*
 
 COPY guest_key.pub /root/.ssh/authorized_keys
 RUN chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys \
     && printf '[Match]\nName=en* eth*\n[Network]\nDHCP=yes\n' > /etc/systemd/network/20-dhcp.network \
-    && systemctl enable systemd-networkd systemd-resolved ssh \
+    && systemctl enable systemd-networkd systemd-resolved ssh seatd \
     && echo wb0 > /etc/hostname \
+    && echo root:symbian | chpasswd \
     && printf '/dev/vda / ext4 rw,relatime 0 1\n' > /etc/fstab \
     && mkdir -p /wb0 \
     && printf 'virtio_mmio\nvirtio_blk\nvirtio_net\nvirtio_rng\next4\n' >> /etc/initramfs-tools/modules \
