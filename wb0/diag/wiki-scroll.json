@@ -1,0 +1,8 @@
+{ "name": "wiki-scroll", "url": "https://en.wikipedia.org/wiki/Symbian",
+  "steps": [
+    { "do": "wait_load" }, { "do": "mem", "name": "s0" }, { "do": "shot", "name": "s0" },
+    { "do": "scroll", "dy": 300 }, { "do": "mem", "name": "s1" },
+    { "do": "scroll", "dy": 300 }, { "do": "mem", "name": "s2" },
+    { "do": "scroll", "dy": 300 }, { "do": "mem", "name": "s3" }, { "do": "shot", "name": "s3" },
+    { "do": "scroll", "dy": 900 }, { "do": "mem", "name": "s4" },
+    { "do": "sleep", "ms": 30000 }, { "do": "mem", "name": "s5" }, { "do": "shot", "name": "s5" } ] }

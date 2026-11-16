@@ -1,0 +1,20 @@
+neoweb-host: wikipedia on mesa at 1080x2160 DPR 2.75
+[2026-11-16T14:56:29Z WARN  script::event_loop::timers] Resuming an already resumed timer.
+[   2278] load HeadParsed
+[  37346] animating=true
+[  37348] animating=false
+[  37349] animating=true
+[  37350] animating=false
+[  37350] animating=true
+[  37351] animating=false
+[  37351] animating=true
+[  37352] animating=false
+[  37354] load Complete
+[  37356] 0,wait_load,"",114,37356,1,2,35290,""
+[  37368] 1,wait_sel,"#firstHeading",37361,37368,1,0,0,""
+[  41832] 2,shot,"article",37390,41832,1,0,0,""
+[  41834] animating=true
+[  41835] animating=false
+[  41836] animating=true
+[  41837] animating=false
+[  41838] animating=true

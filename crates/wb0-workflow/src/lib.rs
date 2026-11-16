@@ -63,9 +63,11 @@ pub enum Action {
     Key {
         key: String,
     },
-    /// Scroll by `dy` CSS pixels (positive = down) and wait for frames to settle.
+    /// Scroll by `dy` CSS pixels (positive = down) in wheel chunks of at most `step` (default 300), waiting for frames
+    /// to settle after each. A large `step` sends one big jump (the WB0 runaway repro).
     Scroll {
         dy: f32,
+        step: Option<f32>,
     },
     /// Write `<name>.png`.
     Shot {
@@ -96,7 +98,7 @@ impl Step {
             Action::Type { secret: true, .. } => ("type", "<secret>".into()),
             Action::Type { text, .. } => ("type", text.clone()),
             Action::Key { key } => ("key", key.clone()),
-            Action::Scroll { dy } => ("scroll", dy.to_string()),
+            Action::Scroll { dy, .. } => ("scroll", dy.to_string()),
             Action::Shot { name } => ("shot", name.clone()),
             Action::Sleep { ms } => ("sleep", ms.to_string()),
             Action::Mem { name } => ("mem", name.clone()),
@@ -153,7 +155,13 @@ mod tests {
         assert_eq!(w.steps[0].timeout_ms(), DEFAULT_TIMEOUT_MS);
         assert!(w.steps[2].optional);
         assert_eq!(w.steps[3].label(), ("type", "<secret>".to_string()));
-        assert_eq!(w.steps[5].action, Action::Scroll { dy: 1500.0 });
+        assert_eq!(
+            w.steps[5].action,
+            Action::Scroll {
+                dy: 1500.0,
+                step: None
+            }
+        );
     }
 
     #[test]

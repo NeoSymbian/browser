@@ -2,7 +2,7 @@
 //! neoweb-host: a headless Servo embedder for WB0. It runs a site workflow (or one URL) with software GL and writes
 //! `steps.csv`, PNGs, memory reports and `console.log` into `--out`.
 //!
-//! neoweb-host (--workflow FILE | URL) [--gl mesa] [--size 1080x2160] [--dpr 2.75] [--out DIR]
+//! neoweb-host (--workflow FILE | URL) [--gl mesa|swgl] [--size 1080x2160] [--dpr 2.75] [--out DIR]
 //!             [--pref NAME=VALUE]... [--jit] [--soak SECS] [--timeout SECS] [--fb /dev/fb0]
 //!             [--paint-interval MS]   (paint at most this often; screenshots always paint; default: every frame)
 //!
@@ -11,6 +11,7 @@
 mod delegate;
 mod exec;
 mod out;
+mod swgl;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -170,7 +171,8 @@ fn rendering_context(
         "mesa" => Ok(Rc::new(
             SoftwareRenderingContext::new(size).map_err(|e| format!("Mesa context: {e:?}"))?,
         )),
-        other => Err(format!("--gl {other}: this build supports mesa")),
+        "swgl" => Ok(Rc::new(swgl::SwglRenderingContext::new(size))),
+        other => Err(format!("--gl {other}: want mesa or swgl")),
     }
 }
 

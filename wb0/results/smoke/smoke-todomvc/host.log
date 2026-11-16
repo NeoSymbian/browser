@@ -1,0 +1,28 @@
+neoweb-host: todomvc on mesa at 1080x2160 DPR 2.75
+[2026-11-16T14:42:11Z WARN  script::event_loop::timers] Resuming an already resumed timer.
+[   2343] load HeadParsed
+[  22595] load Complete
+[  22599] 0,wait_load,"",101,22599,1,2,20366,""
+[ 100344] 1,wait_sel,".new-todo",22601,100344,1,1,77429,""
+[ 100781] 2,tap,".new-todo",100365,100781,1,0,0,""
+[ 110681] 3,type,"buy milk",100804,110681,1,1,9540,""
+[ 119761] 4,key,"Enter",110684,119761,1,1,8776,""
+[ 246425] 5,type,"port servo",128765,246425,1,1,117229,""
+[ 279656] 6,key,"Enter",255732,279656,1,1,23609,""
+[ 409388] 7,type,"measure memory",279660,409388,1,1,129342,""
+[ 416292] 8,key,"Enter",409390,416292,1,1,6492,""
+[ 416296] 9,wait_js,"document.querySelectorAll('.todo-list li').length === 3",416293,416296,1,0,0,""
+[ 556063] animating=true
+[ 681663] 10,tap,".todo-list li .toggle",555969,681663,1,1,125378,""
+[ 695013] animating=false
+[ 728213] 11,wait_js,"(document.querySelector('.todo-count') || {}).textContent.includes('2')",695012,728213,1,2,26476,""
+[ 734558] 12,shot,"todos",728234,734558,1,0,0,""
+[ 734777] 13,mem,"end",734580,734777,1,0,0,""
+neoweb-host: exit 0 after 734798 ms, 16 frames
+[2026-11-16T14:54:25Z WARN  profile_traits::mem] Error communicating with the memory profiler thread: Disconnected
+[2026-11-16T14:54:25Z WARN  profile_traits::mem] Error communicating with the memory profiler thread: Disconnected
+[2026-11-16T14:54:25Z WARN  profile_traits::mem] Error communicating with the memory profiler thread: Disconnected
+[2026-11-16T14:54:25Z WARN  profile_traits::mem] Error communicating with the memory profiler thread: Disconnected
+[2026-11-16T14:54:25Z WARN  profile_traits::mem] Error communicating with the memory profiler thread: Disconnected
+[2026-11-16T14:54:25Z WARN  profile_traits::mem] Error communicating with the memory profiler thread: Disconnected
+[2026-11-16T14:54:25Z WARN  profile_traits::mem] Error communicating with the memory profiler thread: Disconnected

@@ -1,0 +1,5 @@
+{ "name": "wiki-bigjump", "url": "https://en.wikipedia.org/wiki/Symbian",
+  "steps": [
+    { "do": "wait_load" }, { "do": "mem", "name": "before" },
+    { "do": "scroll", "dy": 1500, "step": 1500, "timeout_ms": 600000 },
+    { "do": "mem", "name": "after", "timeout_ms": 600000 }, { "do": "shot", "name": "after" } ] }

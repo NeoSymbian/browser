@@ -25,6 +25,8 @@ const JS_POLL: Duration = Duration::from_millis(250);
 const SCROLL_QUIET: Duration = Duration::from_millis(600);
 /// …or at the latest after this long, for pages that animate continuously.
 const SCROLL_MAX: Duration = Duration::from_secs(5);
+/// …and gives up waiting for a frame of the chunk after this long.
+const SCROLL_NO_FRAME: Duration = Duration::from_secs(60);
 /// Time given to input to take effect before the next step.
 const INPUT_SETTLE: Duration = Duration::from_millis(400);
 
@@ -49,10 +51,15 @@ enum Wait {
         expr: String,
         tap: bool,
     },
-    /// No new frame for `SCROLL_QUIET`.
+    /// A scroll chunk is done when no frame came for `SCROLL_QUIET` (or after `SCROLL_MAX`); then the next chunk of
+    /// the `left` CSS pixels is sent, at most `chunk` at a time.
     Quiet {
         frames: u64,
         since: Instant,
+        chunk_start: Instant,
+        left: f32,
+        chunk: f32,
+        painted_at_start: u64,
     },
     Until(Instant),
     Mem(mpsc::Receiver<MemoryReportResult>, String),
@@ -173,27 +180,7 @@ impl Exec {
                 key(cx, k);
                 Some(Wait::Until(Instant::now() + INPUT_SETTLE))
             }
-            Action::Scroll { dy } => {
-                let size = cx.webview.size();
-                let dpr = cx.webview.hidpi_scale_factor().get();
-                let centre = WebViewPoint::Page(Point2D::new(
-                    size.width / dpr / 2.0,
-                    size.height / dpr / 2.0,
-                ));
-                // WheelDelta.y > 0 scrolls up, so scrolling down is negative; the delta is in device pixels.
-                let delta = WheelDelta {
-                    x: 0.0,
-                    y: -(dy as f64) * dpr as f64,
-                    z: 0.0,
-                    mode: WheelMode::DeltaPixel,
-                };
-                cx.webview
-                    .notify_input_event(InputEvent::Wheel(WheelEvent::new(delta, centre)));
-                Some(Wait::Quiet {
-                    frames: cx.state.frames.get(),
-                    since: Instant::now(),
-                })
-            }
+            Action::Scroll { dy, step } => Some(scroll_chunk(cx, dy, step)),
             Action::Shot { name } => {
                 let image = screenshot(cx).ok_or("no image to read")?;
                 out.png(&self.suffixed(&name), &image)?;
@@ -227,19 +214,43 @@ impl Exec {
                 Ok((cx.state.loads_complete.get() <= self.nav_mark).then_some(Wait::Load))
             }
             Wait::Until(t) => Ok((now < t).then_some(Wait::Until(t))),
-            Wait::Quiet { frames, since } => {
+            Wait::Quiet {
+                frames,
+                since,
+                chunk_start,
+                left,
+                chunk,
+                painted_at_start,
+            } => {
                 let painted = cx.state.frames.get();
-                if now.duration_since(self.step_start) >= SCROLL_MAX {
-                    // The page keeps animating (frames never stop): the scroll is done, the frames are counted.
-                    Ok(None)
+                let age = now.duration_since(chunk_start);
+                // Pace scroll input to rendering: never send the next chunk before a frame of this one is painted
+                // (input faster than frames makes WebRender's work pile up). A page that keeps animating never goes
+                // quiet, so a painted chunk also ends at SCROLL_MAX.
+                let chunk_done = (painted > painted_at_start
+                    && (age >= SCROLL_MAX
+                        || (painted == frames && now.duration_since(since) >= SCROLL_QUIET)))
+                    || age >= SCROLL_NO_FRAME;
+                if chunk_done {
+                    Ok((left > 0.0).then(|| scroll_chunk(cx, left, Some(chunk))))
                 } else if painted != frames {
                     Ok(Some(Wait::Quiet {
                         frames: painted,
                         since: now,
+                        chunk_start,
+                        left,
+                        chunk,
+                        painted_at_start,
                     }))
                 } else {
-                    Ok((now.duration_since(since) < SCROLL_QUIET)
-                        .then_some(Wait::Quiet { frames, since }))
+                    Ok(Some(Wait::Quiet {
+                        frames,
+                        since,
+                        chunk_start,
+                        left,
+                        chunk,
+                        painted_at_start,
+                    }))
                 }
             }
             Wait::Mem(rx, name) => match rx.try_recv() {
@@ -345,6 +356,36 @@ pub fn screenshot(cx: &Cx) -> Option<servo::RgbaImage> {
     cx.webview.paint();
     let size = cx.ctx.size2d().to_i32();
     cx.ctx.read_to_image(DeviceIntRect::from_size(size))
+}
+
+/// Send one wheel scroll of at most `step` (default 300) CSS pixels of `dy`; the rest is left for the next chunk.
+fn scroll_chunk(cx: &Cx, dy: f32, step: Option<f32>) -> Wait {
+    let chunk = step.unwrap_or(300.0).max(1.0);
+    let now_dy = dy.signum() * dy.abs().min(chunk);
+    let size = cx.webview.size();
+    let dpr = cx.webview.hidpi_scale_factor().get();
+    let centre = WebViewPoint::Page(Point2D::new(
+        size.width / dpr / 2.0,
+        size.height / dpr / 2.0,
+    ));
+    // WheelDelta.y > 0 scrolls up, so scrolling down is negative; the delta is in device pixels.
+    let delta = WheelDelta {
+        x: 0.0,
+        y: -(now_dy as f64) * dpr as f64,
+        z: 0.0,
+        mode: WheelMode::DeltaPixel,
+    };
+    cx.webview
+        .notify_input_event(InputEvent::Wheel(WheelEvent::new(delta, centre)));
+    let now = Instant::now();
+    Wait::Quiet {
+        frames: cx.state.frames.get(),
+        since: now,
+        chunk_start: now,
+        left: dy - now_dy,
+        chunk,
+        painted_at_start: cx.state.frames.get(),
+    }
 }
 
 fn key(cx: &Cx, key: Key) {

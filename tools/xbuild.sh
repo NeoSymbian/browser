@@ -7,7 +7,8 @@
 #   tools/xbuild.sh check        fmt + armv7 clippy -D warnings for crates/
 #   tools/xbuild.sh stackprobe   out/stackprobe.so for the guest
 #   tools/xbuild.sh shell        a shell in the container
-# patches/<crate>/*.patch are applied to a copy of that locked crate (mozjs_sys today; also on its fork, see patches/).
+# patches/<crate>/*.patch are applied to a copy of that locked crate (mozjs_sys today; also on its fork, see patches/);
+# patches/servo/*.patch to the /servo checkout.
 # JOBS (default 6) bounds parallelism: Docker Desktop's VM memory limits it.
 # Big state lives in named volumes: wb0-servo (source), wb0-cargo (registry), wb0-target (build dir, ~40–60 GB).
 set -euo pipefail
@@ -30,10 +31,15 @@ $1"
 PRELUDE="
 [ -d /servo/.git ] || git clone --depth 1 --branch $SERVO_TAG https://github.com/servo/servo /servo
 cd /servo && git describe --tags --exact-match >/dev/null && git checkout -q Cargo.lock
+# patches/servo/*.patch go onto the checkout itself; applied once (a re-apply would touch files and force rebuilds).
+for p in /work/patches/servo/*.patch; do
+  [ -e \"\$p\" ] || continue
+  git apply -R --check \"\$p\" 2>/dev/null || { git apply \"\$p\" && echo applied \$p; }
+done
 cargo fetch --locked >/dev/null
 patch_cfg=()
 for d in /work/patches/*/; do
-  c=\$(basename \$d); src=\$(ls -d /cargo/registry/src/*/\$c-[0-9]* | head -1)
+  c=\$(basename \$d); [ \"\$c\" = servo ] && continue; src=\$(ls -d /cargo/registry/src/*/\$c-[0-9]* | head -1)
   h=\$(cat \$d*.patch | sha256sum | cut -c1-16)
   if [ \"\$(cat /target/patched/\$c/.wb0-stamp 2>/dev/null)\" != \"\$h\" ]; then
     rm -rf /target/patched/\$c && mkdir -p /target/patched && cp -r \$src /target/patched/\$c

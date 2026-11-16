@@ -22,3 +22,8 @@ dpi = "0.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
 serde_json = "1"
 wb0-workflow = { path = "../wb0-workflow" }
+# --gl swgl: WebRender's software GL (the versions Servo 0.8 locks: gleam 0.15.1, glow 0.17, surfman 0.14).
+swgl = "0.70"
+gleam = "0.15"
+glow = "0.17"
+surfman = { version = "0.14", default-features = false }

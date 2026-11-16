@@ -1,0 +1,4 @@
+step,kind,arg,t_start_ms,t_end_ms,ok,frames,max_frame_gap_ms,note
+0,wait_load,"",114,37356,1,2,35290,""
+1,wait_sel,"#firstHeading",37361,37368,1,0,0,""
+2,shot,"article",37390,41832,1,0,0,""

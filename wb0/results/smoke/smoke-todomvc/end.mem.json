@@ -1,0 +1,1353 @@
+{
+  "results": [
+    {
+      "pid": 15467,
+      "isMainProcess": true,
+      "reports": [
+        {
+          "path": [
+            "system-fonts"
+          ],
+          "kind": "ExplicitSystemHeapSize",
+          "size": 18032
+        },
+        {
+          "path": [
+            "memory-cache",
+            "public"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 838004
+        },
+        {
+          "path": [
+            "hsts-list",
+            "public"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 380
+        },
+        {
+          "path": [
+            "auth cache",
+            "public"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "cookie storage",
+            "public"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 856
+        },
+        {
+          "path": [
+            "memory-cache",
+            "private"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "hsts-list",
+            "private"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "auth cache",
+            "private"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "cookie storage",
+            "private"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "hsts-preload-list"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 1953784
+        },
+        {
+          "path": [
+            "public-suffix-list"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 368128
+        },
+        {
+          "path": [
+            "indexeddb"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "storage",
+            "local"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "storage",
+            "session"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "indexeddb"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "vsize"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 783560704
+        },
+        {
+          "path": [
+            "resident"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 437555200
+        },
+        {
+          "path": [
+            "pss"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 124991
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/usr/lib/arm-linux-gnueabihf/libc.so.6 (r-xp)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 1101824
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/usr/lib/arm-linux-gnueabihf/libstdc++.so.6.0.33 (r-xp)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 1101824
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/usr/lib/arm-linux-gnueabihf/libgallium-25.0.7-2+deb13u1.so (r--p)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 892928
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/usr/lib/arm-linux-gnueabihf/libGLdispatch.so.0.0.0 (r-xp)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 667648
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/wb0/neoweb-host (r-xp)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 54296576
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "anonymous (rw-p)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 296542208
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/wb0/neoweb-host (r--p)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 1658880
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "other"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 14462976
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "[heap] (rw-p)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 24645632
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/usr/lib/arm-linux-gnueabihf/libLLVM.so.19.1 (r--p)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 4218880
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/usr/lib/arm-linux-gnueabihf/libLLVM.so.19.1 (r-xp)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 30453760
+        },
+        {
+          "path": [
+            "resident-according-to-smaps",
+            "/usr/lib/arm-linux-gnueabihf/libgallium-25.0.7-2+deb13u1.so (r-xp)"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 8556544
+        },
+        {
+          "path": [
+            "system-heap-allocated"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 381492680
+        },
+        {
+          "path": [
+            "system-heap-reserved"
+          ],
+          "kind": "NonExplicitSize",
+          "size": 385261568
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "layout-thread",
+            "display-list"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "layout-thread",
+            "stylist"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 28240
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "layout-thread",
+            "font-context"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 49904
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "layout-thread",
+            "box-tree"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 157568
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "layout-thread",
+            "fragment-tree"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 80
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "layout-thread",
+            "stacking-context-tree"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 13188
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "image-cache",
+            "cache"
+          ],
+          "kind": "ExplicitSystemHeapSize",
+          "size": 101572
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "image-cache",
+            "svg_id_map"
+          ],
+          "kind": "ExplicitSystemHeapSize",
+          "size": 28
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "image-cache",
+            "broken_image_icon"
+          ],
+          "kind": "ExplicitSystemHeapSize",
+          "size": 168
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "image-cache",
+            "svg_font_resolver"
+          ],
+          "kind": "ExplicitSystemHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "image-cache",
+            "usvg_options"
+          ],
+          "kind": "ExplicitSystemHeapSize",
+          "size": 160
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "element-nodes"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 60960
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "text-nodes"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 18676
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "attribute-nodes"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 712
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "other-nodes"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 13247
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "DocumentFragment [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 232
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "UnderlyingSourceContainer [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 104
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "PerformancePaintTiming [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 248
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "KeyboardEvent [105]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 39388
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Navigator [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 60
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "PerformanceTiming [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 100
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Request [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 1156
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "URL [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 100
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "TrustedTypePolicy [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 96
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Location [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 20
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "TouchEvent [4]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 1432
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "ValidityState [5]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 340
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "DOMTokenList [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 168
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLQuoteElement [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 420
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "InputEvent [64]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 20240
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLElement [5]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 1736
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLSpanElement [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 404
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "MouseEvent [18]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 6508
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "AbortSignal [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 188
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "PointerEvent [38]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 17296
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "AbortController [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 20
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Touch [6]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 408
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "CSSStyleDeclaration [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 28
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Attr [18]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 3044
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "NodeList [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 160
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "XMLHttpRequest [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 47138
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "PageTransitionEvent [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 204
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "History [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 36
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "DocumentTimeline [3]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 132
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "PerformanceNavigationTiming [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 760
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "ServoParser [3]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 3228
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "TrustedTypePolicyFactory [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 116
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "ProgressEvent [14]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 3104
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Response [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 92
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "TransitionEvent [3]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 1512
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "DOMRect [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 88
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "TrustedScriptURL [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 184
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "XMLHttpRequestUpload [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 40
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "MessageEvent [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 360
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "DOMStringList [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 20
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Selection [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 60
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Window [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 2968
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "FocusEvent [6]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 1792
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLLIElement [5]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 1640
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Headers [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 184
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "DOMStringMap [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 12
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "PerformanceResourceTiming [10]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 4424
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLDivElement [4]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 972
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "PerformanceNavigation [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 12
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "PromiseNativeHandler [3]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 156
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLHeadingElement [5]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 1680
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "ReadableStream [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 120
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Screen [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 12
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLParagraphElement [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 328
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "ReadableStreamDefaultController [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 76
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Text [62]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 7476
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLHRElement [3]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 984
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Performance [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 176
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "TouchList [12]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 336
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Event [38]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 7992
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "MessageChannel [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 20
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLAnchorElement [15]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 8588
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Document [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 13112
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "CSSStyleSheet [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 192
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "FontFaceSet [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 64
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "MessagePort [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 168
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "ReadableByteStreamController [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 100
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLCollection [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 52
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "Crypto [1]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 12
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLUListElement [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 656
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "dom",
+            "out-of-tree",
+            "url(https://todomvc.com/examples/react/dist/)-1",
+            "HTMLHtmlElement [2]"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 416
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "gc-heap",
+            "used"
+          ],
+          "kind": "ExplicitNonHeapSize",
+          "size": 2293704
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "gc-heap",
+            "unused"
+          ],
+          "kind": "ExplicitNonHeapSize",
+          "size": 73736
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "gc-heap",
+            "admin"
+          ],
+          "kind": "ExplicitNonHeapSize",
+          "size": 114736
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "gc-heap",
+            "decommitted"
+          ],
+          "kind": "ExplicitNonHeapSize",
+          "size": 2760704
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "malloc-heap"
+          ],
+          "kind": "ExplicitSystemHeapSize",
+          "size": 6844388
+        },
+        {
+          "path": [
+            "url(https://todomvc.com/examples/react/dist/)",
+            "js",
+            "non-heap"
+          ],
+          "kind": "ExplicitNonHeapSize",
+          "size": 1231312
+        },
+        {
+          "path": [
+            "storage",
+            "local"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "storage",
+            "session"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "webrender",
+            "fonts"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 0
+        },
+        {
+          "path": [
+            "webrender",
+            "images"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 96808
+        },
+        {
+          "path": [
+            "webrender",
+            "display-list"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 49320
+        },
+        {
+          "path": [
+            "paint",
+            "scroll-tree"
+          ],
+          "kind": "ExplicitJemallocHeapSize",
+          "size": 8556
+        }
+      ]
+    }
+  ]
+}
