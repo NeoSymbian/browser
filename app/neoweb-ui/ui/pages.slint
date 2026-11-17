@@ -1,0 +1,247 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// The stand-in engine's pages (neoweb-core FakeEngine, B08), after the canvas boards: the Wikipedia article of
+// br2-page and the GitHub dashboard of br2-login-save; any other address gets a plain page naming it. Plain text, no
+// links: Servo draws real pages from WB4 (docs browser-ui.md).
+import { Theme } from "@neoui/kit.slint";
+
+component Para inherits Text {
+    font-size: 15 * Theme.dp;
+    color: #202122;
+    wrap: word-wrap;
+}
+
+component Wikipedia inherits VerticalLayout {
+    alignment: start;
+    Rectangle {
+        height: 48 * Theme.dp;
+        background: white;
+        HorizontalLayout {
+            padding-left: 14 * Theme.dp;
+            padding-right: 14 * Theme.dp;
+            spacing: 14 * Theme.dp;
+            VerticalLayout {
+                alignment: center;
+                spacing: 4 * Theme.dp;
+                for i in 3: Rectangle {
+                    width: 18 * Theme.dp;
+                    height: 2 * Theme.dp;
+                    background: #202122;
+                }
+            }
+
+            Text {
+                text: "Wikipedia";
+                font-size: 17 * Theme.dp;
+                font-weight: 600;
+                color: #202122;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+        }
+
+        Rectangle {
+            y: parent.height - 1px;
+            height: 1px;
+            background: #eaecf0;
+        }
+    }
+
+    VerticalLayout {
+        padding-left: 16 * Theme.dp;
+        padding-right: 16 * Theme.dp;
+        padding-top: 14 * Theme.dp;
+        padding-bottom: 14 * Theme.dp;
+        spacing: 12 * Theme.dp;
+        Text {
+            text: "Symbian";
+            font-size: 28 * Theme.dp;
+            color: #202122;
+        }
+
+        HorizontalLayout {
+            spacing: 16 * Theme.dp;
+            Text {
+                text: "Article";
+                font-size: Theme.font-label;
+                font-weight: 600;
+                color: #202122;
+            }
+
+            Text {
+                text: "Talk";
+                font-size: Theme.font-label;
+                color: #54595d;
+                horizontal-stretch: 1;
+            }
+        }
+
+        Rectangle {
+            height: 1px;
+            background: #eaecf0;
+        }
+
+        Text {
+            text: "From Wikipedia, the free encyclopedia";
+            font-size: 13 * Theme.dp;
+            font-italic: true;
+            color: #54595d;
+        }
+
+        Para {
+            text: "Symbian is a discontinued mobile operating system and computing platform for smartphones. It began in 1998 as a proprietary OS for personal digital assistants, developed by the Symbian Ltd. consortium, and grew out of Psion's EPOC.";
+        }
+
+        Para {
+            text: "It was the most widely used smartphone OS until the end of 2010. Its user interfaces included S60, UIQ and MOAP(S).";
+        }
+
+        Rectangle {
+            border-width: 1px;
+            border-color: #c8ccd1;
+            background: #f8f9fa;
+            VerticalLayout {
+                padding: 6 * Theme.dp;
+                spacing: 6 * Theme.dp;
+                Rectangle {
+                    height: 120 * Theme.dp;
+                    background: @linear-gradient(135deg, #1f2a3a 0%, #3d5a80 100%);
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 10 * Theme.dp;
+                        for c in [#2f80ed, #22b46a, #e2a92a, #e5484d]: Rectangle {
+                            y: (parent.height - self.height) / 2;
+                            width: 30 * Theme.dp;
+                            height: 30 * Theme.dp;
+                            border-radius: 8 * Theme.dp;
+                            background: c;
+                        }
+                    }
+                }
+
+                Text {
+                    text: "Symbian^3 home screen (2010)";
+                    font-size: 12.5 * Theme.dp;
+                    color: #202122;
+                }
+            }
+        }
+
+        Text {
+            text: "History";
+            font-size: 22 * Theme.dp;
+            color: #202122;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: #a2a9b1;
+        }
+
+        Para {
+            text: "In 2008 Nokia bought Symbian Ltd. and set up the Symbian Foundation, which released the platform as open source under the Eclipse Public License. Symbian^3 shipped in 2010 on the Nokia N8.";
+        }
+
+        Para {
+            text: "Nokia moved its smartphones to Windows Phone in 2011 and handed Symbian work to Accenture; the last Symbian phone, the Nokia 808 PureView, came out in 2012.";
+        }
+    }
+}
+
+component GitHub inherits VerticalLayout {
+    alignment: start;
+    Rectangle {
+        height: 48 * Theme.dp;
+        background: #24292f;
+        Text {
+            x: 16 * Theme.dp;
+            text: "GitHub";
+            font-size: 17 * Theme.dp;
+            font-weight: 700;
+            color: white;
+        }
+    }
+
+    VerticalLayout {
+        padding: 16 * Theme.dp;
+        spacing: 12 * Theme.dp;
+        Text {
+            text: "Dashboard";
+            font-size: 22 * Theme.dp;
+            font-weight: 600;
+            color: #1f2328;
+        }
+
+        Text {
+            text: "Top repositories";
+            font-size: 14 * Theme.dp;
+            font-weight: 600;
+            color: #59636e;
+        }
+
+        for r in [
+            { name: "NeoSymbian/kernel", what: "The EKA2 kernel with the AArch64 port" },
+            { name: "NeoSymbian/neoui", what: "Rust UI server and apps" },
+            { name: "NeoSymbian/browser", what: "The web browser, Servo-based" },
+            { name: "NeoSymbian/build", what: "The build system" },
+        ]: Rectangle {
+            height: 64 * Theme.dp;
+            border-radius: 6 * Theme.dp;
+            border-width: 1px;
+            border-color: #d1d9e0;
+            VerticalLayout {
+                padding-left: 12 * Theme.dp;
+                alignment: center;
+                spacing: 4 * Theme.dp;
+                Text {
+                    text: r.name;
+                    font-size: 15 * Theme.dp;
+                    font-weight: 600;
+                    color: #0969da;
+                }
+
+                Text {
+                    text: r.what;
+                    font-size: 13 * Theme.dp;
+                    color: #59636e;
+                }
+            }
+        }
+    }
+}
+
+component Other inherits VerticalLayout {
+    in property <string> domain;
+    alignment: start;
+    padding: 16 * Theme.dp;
+    spacing: 12 * Theme.dp;
+    Text {
+        text: root.domain;
+        font-size: 24 * Theme.dp;
+        font-weight: 600;
+        color: #202122;
+        wrap: word-wrap;
+    }
+
+    Para {
+        text: "A stand-in page from NEOWEB's test engine. Real pages arrive when Servo runs on the phone (WB4).";
+        color: #54595d;
+    }
+}
+
+export component FakePages inherits Flickable {
+    in property <int> page;
+    in property <string> domain;
+    content-height: max(self.height, body.preferred-height);
+    Rectangle {
+        background: white;
+        height: max(root.height, body.preferred-height);
+        body := VerticalLayout {
+            alignment: start;
+            if root.page == 1: Wikipedia { }
+            if root.page == 2: GitHub { }
+            if root.page == 3: Other {
+                domain: root.domain;
+            }
+        }
+    }
+}

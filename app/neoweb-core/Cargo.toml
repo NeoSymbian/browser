@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "neoweb-core"
+description = "NEOWEB's logic (no_std): page history per tab, the chrome's state, the start page, the stand-in engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
