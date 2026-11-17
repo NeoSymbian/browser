@@ -4,7 +4,7 @@
 # pins must match neoui's at the rev below: one e32 (it defines the global allocator) and one Slint in the ROM.
 [workspace]
 resolver = "3"
-members = ["neoweb"]
+members = ["neoweb", "pipsprobe"]
 
 [workspace.dependencies]
 e32 = { git = "https://github.com/NeoSymbian/e32-rs", rev = "e97e2ebcb242f5365d1b3f9d520646603e1e9056", features = ["critical-section"] }
