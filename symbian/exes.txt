@@ -1,3 +1,5 @@
 # For NeoSymbian/build rust/exes.txt: copy this line and target/armv5te-none-eabi/release/libneoweb.a into build/rust/.
 # The UI server (neoui SYSSTART) starts it from the Browser tile (host.rs APPS "browser").
 NEOWEB.EXE     0xE0007001  libneoweb.a
+# WB2b: built with `cargo arm7`; copy pipsprobe/pipsprobe.cpp and pipsprobe/layout.inc into build/rust/ as well
+PIPSPROB.EXE   0xE0007002  libpipsprobe.a     rust/pipsprobe.cpp  libs=libc,libpthread,libm
