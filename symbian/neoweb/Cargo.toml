@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[package]
+name = "neoweb"
+description = "NEOWEB.EXE: the browser (NeoSymbian/browser), its chrome on the neoui kit over a page engine"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+test = false
+
+[dependencies]
+e32.workspace = true
+neoapp.workspace = true
+slint.workspace = true
+neoweb-core.workspace = true
+neoweb-ui.workspace = true

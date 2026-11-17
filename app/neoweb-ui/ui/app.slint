@@ -1,0 +1,352 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// NEOWEB: the browser's chrome on the neoui kit (docs browser-ui.md, canvas Browser page `br2-*`). The header is the
+// address bar (B01), the footer five actions (B07); between them the start page (B06) or a page. UI0 draws the pages
+// of the stand-in engine (pages.slint); Servo's pixels replace them at WB4.
+import "@neoui/fonts/NeoSans-Regular.ttf";
+import "@neoui/fonts/NeoSans-Medium.ttf";
+import "@neoui/fonts/NeoSans-SemiBold.ttf";
+import "@neoui/fonts/NeoSans-Bold.ttf";
+import "@neoui/fonts/DejaVuSans.ttf";
+import { Theme, Kit, Scroll, Glyph, HeaderButton } from "@neoui/kit.slint";
+import { FakePages } from "pages.slint";
+
+export { Theme, Kit, Scroll }
+
+export struct ShortcutTile {
+    letters: string,
+    label: string,
+    color: color,
+}
+
+// What the app's Rust shows; taps come back as act(action, value):
+// "back" "forward" "search" "tabs" "options" (the footer), "address" "site-info" "bookmark" "reload" "stop" (the
+// header), "shortcut" i, "recent" i, "edit-shortcuts" (the start page).
+export global BrowserState {
+    // neoweb-core FakePage: 0 the start page, 1 Wikipedia, 2 GitHub, 3 any other address
+    in property <int> page;
+    // neoweb-core Security: 0 none (the empty header), 1 secure, 2 not secure
+    in property <int> security;
+    in property <string> domain;
+    in property <bool> loading;
+    in property <float> progress;
+    in property <bool> bookmarked;
+    in property <bool> can-back;
+    in property <bool> can-forward;
+    in property <string> count: "1";
+    in property <[ShortcutTile]> shortcuts;
+    in property <[string]> recents;
+    callback act(string, int);
+}
+
+// The footer's slot: a 24 dp glyph in a 40 dp press circle, dim when disabled (#7d838c at 40 %).
+component FooterButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> disabled;
+    in property <string> count;
+    callback clicked;
+    accessible-role: button;
+    accessible-label: label;
+    Rectangle {
+        width: 40 * Theme.dp;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: t.pressed && !root.disabled ? Theme.pressed : transparent;
+        Glyph {
+            source: root.icon;
+            size: Theme.action-glyph;
+            colorize: root.disabled ? Theme.text-dim : Theme.text-secondary;
+            opacity: root.disabled ? 0.4 : 1;
+        }
+
+        // the count inside the tabs glyph's front card
+        if root.count != "": Text {
+            x: 12 * Theme.dp;
+            y: 15.5 * Theme.dp;
+            width: 12.5 * Theme.dp;
+            height: 12.5 * Theme.dp;
+            text: root.count;
+            font-size: 9 * Theme.dp;
+            font-weight: 700;
+            color: Theme.text-secondary;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    t := TouchArea {
+        enabled: !root.disabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// B07: ← → Search, Opened pages (with the count), Options; actions, not tabs: no pill.
+component BrowserFooter inherits Rectangle {
+    height: Theme.footer-h;
+    background: Theme.header-alt;
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.header-hairline;
+    }
+
+    HorizontalLayout {
+        FooterButton {
+            icon: @image-url("@neoui/icons/sys/back.svg");
+            label: "Back";
+            disabled: !BrowserState.can-back;
+            clicked => { BrowserState.act("back", 0); }
+        }
+
+        FooterButton {
+            icon: @image-url("icons/forward.svg");
+            label: "Forward";
+            disabled: !BrowserState.can-forward;
+            clicked => { BrowserState.act("forward", 0); }
+        }
+
+        FooterButton {
+            icon: @image-url("@neoui/icons/sys/search.svg");
+            label: "Search or type an address";
+            clicked => { BrowserState.act("search", 0); }
+        }
+
+        FooterButton {
+            icon: @image-url("@neoui/icons/sys/tabs.svg");
+            label: "Opened pages, " + BrowserState.count;
+            count: BrowserState.count;
+            clicked => { BrowserState.act("tabs", 0); }
+        }
+
+        FooterButton {
+            icon: @image-url("@neoui/icons/sys/apps.svg");
+            label: "Options";
+            clicked => { BrowserState.act("options", 0); }
+        }
+    }
+}
+
+// B01: the address bar. Empty: "Search or type an address". A page: the security icon + the domain (path hidden),
+// ☆ and ⟳ (✕ while loading, with a 2 dp accent progress line under the bar).
+component AddressBar inherits Rectangle {
+    height: Theme.header-h;
+    background: Theme.header-alt;
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.header-hairline;
+    }
+
+    if BrowserState.security == 0: TouchArea {
+        clicked => { BrowserState.act("address", 0); }
+        HorizontalLayout {
+            padding-left: 16 * Theme.dp;
+            padding-right: 16 * Theme.dp;
+            spacing: 12 * Theme.dp;
+            alignment: start;
+            Glyph {
+                y: (parent.height - self.height) / 2;
+                source: @image-url("@neoui/icons/sys/search.svg");
+                size: 20 * Theme.dp;
+                colorize: Theme.text-secondary;
+            }
+
+            Text {
+                text: "Search or type an address";
+                font-size: Theme.font-body;
+                color: Theme.text-dim;
+                vertical-alignment: center;
+            }
+        }
+    }
+    if BrowserState.security != 0: HorizontalLayout {
+        padding-left: 12 * Theme.dp;
+        padding-right: 4 * Theme.dp;
+        TouchArea {
+            horizontal-stretch: 1;
+            clicked => { BrowserState.act("address", 0); }
+            HorizontalLayout {
+                padding-left: 4 * Theme.dp;
+                spacing: 9 * Theme.dp;
+                alignment: start;
+                TouchArea {
+                    width: 18 * Theme.dp;
+                    clicked => { BrowserState.act("site-info", 0); }
+                    Glyph {
+                        source: BrowserState.security == 1 ? @image-url("@neoui/icons/sys/lock.svg") : @image-url("@neoui/icons/sys/info.svg");
+                        size: 18 * Theme.dp;
+                        colorize: Theme.text-secondary;
+                    }
+                }
+
+                if BrowserState.security == 2: Text {
+                    text: "Not secure";
+                    font-size: Theme.font-label;
+                    color: Theme.text-secondary;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: BrowserState.domain;
+                    font-size: Theme.font-body;
+                    font-weight: 500;
+                    color: Theme.text;
+                    overflow: elide;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        HeaderButton {
+            icon: @image-url("@neoui/icons/sys/star.svg");
+            label: BrowserState.bookmarked ? "Remove bookmark" : "Bookmark this page";
+            tint: BrowserState.bookmarked ? Theme.accent : Theme.text-secondary;
+            clicked => { BrowserState.act("bookmark", 0); }
+        }
+
+        HeaderButton {
+            icon: BrowserState.loading ? @image-url("@neoui/icons/sys/close.svg") : @image-url("@neoui/icons/sys/refresh.svg");
+            label: BrowserState.loading ? "Stop loading" : "Reload";
+            clicked => { BrowserState.act(BrowserState.loading ? "stop" : "reload", 0); }
+        }
+    }
+    if BrowserState.loading: Rectangle {
+        x: 0;
+        y: parent.height - 2 * Theme.dp;
+        width: parent.width * max(0.05, min(1, BrowserState.progress));
+        height: 2 * Theme.dp;
+        background: Theme.accent;
+    }
+}
+
+// B06 (br2-start): Shortcuts 4 × 2 with Edit, then Recently visited.
+component StartPage inherits Flickable {
+    content-height: col.preferred-height;
+    col := VerticalLayout {
+        padding: Theme.margin;
+        spacing: 14 * Theme.dp;
+        alignment: start;
+        HorizontalLayout {
+            height: 20 * Theme.dp;
+            Text {
+                text: "Shortcuts";
+                font-size: Theme.font-label;
+                font-weight: 600;
+                color: Theme.text-dim;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+
+            TouchArea {
+                width: 60 * Theme.dp;
+                clicked => { BrowserState.act("edit-shortcuts", 0); }
+                HorizontalLayout {
+                    spacing: 6 * Theme.dp;
+                    alignment: end;
+                    Glyph {
+                        y: (parent.height - self.height) / 2;
+                        source: @image-url("@neoui/icons/sys/edit.svg");
+                        size: 16 * Theme.dp;
+                        colorize: Theme.accent;
+                    }
+
+                    Text {
+                        text: "Edit";
+                        font-size: Theme.font-label;
+                        font-weight: 600;
+                        color: Theme.accent;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        for row in [0, 1]: HorizontalLayout {
+            spacing: 8 * Theme.dp;
+            for i in [0, 1, 2, 3]: TouchArea {
+                property <ShortcutTile> s: BrowserState.shortcuts[row * 4 + i];
+                height: 86 * Theme.dp;
+                // equal columns whatever the label's length: all stretch from the same preferred width
+                min-width: 0;
+                preferred-width: 0;
+                horizontal-stretch: 1;
+                clicked => { BrowserState.act("shortcut", row * 4 + i); }
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 6 * Theme.dp;
+                    HorizontalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 50 * Theme.dp;
+                            height: 50 * Theme.dp;
+                            border-radius: 14 * Theme.dp;
+                            background: s.color;
+                            Text {
+                                text: s.letters;
+                                font-size: 18 * Theme.dp;
+                                font-weight: 700;
+                                color: white;
+                            }
+                        }
+                    }
+
+                    Text {
+                        min-width: 0;
+                        overflow: elide;
+                        text: s.label;
+                        font-size: 13 * Theme.dp;
+                        color: Theme.text-secondary;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+        }
+
+        if BrowserState.recents.length > 0: Text {
+            text: "Recently visited";
+            font-size: Theme.font-label;
+            font-weight: 600;
+            color: Theme.text-dim;
+        }
+        VerticalLayout {
+            spacing: 8 * Theme.dp;
+            for r[i] in BrowserState.recents: TouchArea {
+                height: 48 * Theme.dp;
+                clicked => { BrowserState.act("recent", i); }
+                Rectangle {
+                    border-radius: Theme.radius;
+                    border-width: 1px;
+                    border-color: Theme.card-border;
+                    background: parent.pressed ? Theme.pressed : Theme.card;
+                    Text {
+                        x: 14 * Theme.dp;
+                        width: parent.width - 28 * Theme.dp;
+                        text: r;
+                        font-size: 15.2 * Theme.dp;
+                        color: Theme.text;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component BrowserApp inherits Window {
+    default-font-family: "NeoSans";
+    background: Theme.bg;
+    VerticalLayout {
+        AddressBar { }
+        if BrowserState.page == 0: StartPage {
+            vertical-stretch: 1;
+        }
+        if BrowserState.page != 0: FakePages {
+            vertical-stretch: 1;
+            page: BrowserState.page;
+            domain: BrowserState.domain;
+        }
+        BrowserFooter { }
+    }
+}
