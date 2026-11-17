@@ -7,10 +7,18 @@ import "@neoui/fonts/NeoSans-Medium.ttf";
 import "@neoui/fonts/NeoSans-SemiBold.ttf";
 import "@neoui/fonts/NeoSans-Bold.ttf";
 import "@neoui/fonts/DejaVuSans.ttf";
-import { Theme, Kit, Scroll, Glyph, HeaderButton } from "@neoui/kit.slint";
+import { Theme, Kit, Scroll, Glyph, HeaderButton, KeyboardFocus } from "@neoui/kit.slint";
+import { FieldInput } from "@neoui/components/controls.slint";
 import { FakePages } from "pages.slint";
 
-export { Theme, Kit, Scroll }
+export { Theme, Kit, Scroll, KeyboardFocus }
+
+// A row under the address bar while editing (neoweb-core input::Suggestion): kind 0 history, 1 bookmark, 2 search.
+export struct Suggest {
+    kind: int,
+    title: string,
+    url: string,
+}
 
 export struct ShortcutTile {
     letters: string,
@@ -20,7 +28,8 @@ export struct ShortcutTile {
 
 // What the app's Rust shows; taps come back as act(action, value):
 // "back" "forward" "search" "tabs" "options" (the footer), "address" "site-info" "bookmark" "reload" "stop" (the
-// header), "shortcut" i, "recent" i, "edit-shortcuts" (the start page).
+// header), "shortcut" i, "recent" i, "edit-shortcuts" (the start page), "edited" and "go" (typing, Enter in edit mode), "cancel-edit",
+// "suggestion" i, "scroll" dp (the page's offset from its top), "tick" (every 100 ms while loading).
 export global BrowserState {
     // neoweb-core FakePage: 0 the start page, 1 Wikipedia, 2 GitHub, 3 any other address
     in property <int> page;
@@ -35,6 +44,14 @@ export global BrowserState {
     in property <string> count: "1";
     in property <[ShortcutTile]> shortcuts;
     in property <[string]> recents;
+    // edit mode (br2-address): the field's text and the rows under it
+    in property <bool> editing;
+    in-out property <string> edit-text;
+    in property <[Suggest]> suggestions;
+    // B02: header and footer shown; they slide away while reading (br2-reading)
+    in property <bool> chrome-shown: true;
+    // the page's scroll position (Flickable content-y: 0 at the top, negative further down)
+    in-out property <length> page-y;
     callback act(string, int);
 }
 
@@ -139,7 +156,7 @@ component AddressBar inherits Rectangle {
         background: Theme.header-hairline;
     }
 
-    if BrowserState.security == 0: TouchArea {
+    if !BrowserState.editing && BrowserState.security == 0: TouchArea {
         clicked => { BrowserState.act("address", 0); }
         HorizontalLayout {
             padding-left: 16 * Theme.dp;
@@ -161,7 +178,7 @@ component AddressBar inherits Rectangle {
             }
         }
     }
-    if BrowserState.security != 0: HorizontalLayout {
+    if !BrowserState.editing && BrowserState.security != 0: HorizontalLayout {
         padding-left: 12 * Theme.dp;
         padding-right: 4 * Theme.dp;
         TouchArea {
@@ -209,6 +226,48 @@ component AddressBar inherits Rectangle {
             icon: BrowserState.loading ? @image-url("@neoui/icons/sys/close.svg") : @image-url("@neoui/icons/sys/refresh.svg");
             label: BrowserState.loading ? "Stop loading" : "Reload";
             clicked => { BrowserState.act(BrowserState.loading ? "stop" : "reload", 0); }
+        }
+    }
+    // edit mode (B01): a 40 dp field #1d2025 r20 with the full URL selected, ✕ cancels
+    if BrowserState.editing: HorizontalLayout {
+        padding-left: 12 * Theme.dp;
+        padding-right: 4 * Theme.dp;
+        spacing: 4 * Theme.dp;
+        VerticalLayout {
+            horizontal-stretch: 1;
+            // a long URL must not push ✕ away
+            min-width: 0;
+            alignment: center;
+            Rectangle {
+                height: Theme.search-h;
+                border-radius: self.height / 2;
+                background: Theme.field;
+                HorizontalLayout {
+                    padding-left: 14 * Theme.dp;
+                    padding-right: 14 * Theme.dp;
+                    FieldInput {
+                        min-width: 0;
+                        horizontal-stretch: 1;
+                        text <=> BrowserState.edit-text;
+                        edited => {
+                            BrowserState.act("edited", 0);
+                        }
+                        accepted => {
+                            BrowserState.act("go", 0);
+                        }
+                        init => {
+                            self.focus();
+                            self.select-all();
+                        }
+                    }
+                }
+            }
+        }
+
+        HeaderButton {
+            icon: @image-url("@neoui/icons/sys/close.svg");
+            label: "Cancel editing";
+            clicked => { BrowserState.act("cancel-edit", 0); }
         }
     }
     if BrowserState.loading: Rectangle {
@@ -334,19 +393,124 @@ component StartPage inherits Flickable {
     }
 }
 
+// br2-address: history rows (clock), bookmark rows (☆), then the web search.
+component Suggestions inherits Flickable {
+    content-height: col.preferred-height;
+    col := VerticalLayout {
+        alignment: start;
+        for s[i] in BrowserState.suggestions: TouchArea {
+            height: Theme.list-row-double-h;
+            clicked => { BrowserState.act("suggestion", i); }
+            Rectangle {
+                background: parent.pressed ? Theme.pressed : transparent;
+            }
+
+            HorizontalLayout {
+                padding-left: 16 * Theme.dp;
+                padding-right: 16 * Theme.dp;
+                spacing: 16 * Theme.dp;
+                Glyph {
+                    y: (parent.height - self.height) / 2;
+                    source: s.kind == 0 ? @image-url("@neoui/icons/sys/recents.svg") : s.kind == 1 ? @image-url("@neoui/icons/sys/star.svg") : @image-url("@neoui/icons/sys/search.svg");
+                    size: 22 * Theme.dp;
+                    colorize: Theme.text-secondary;
+                }
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 3 * Theme.dp;
+                    Text {
+                        font-family: "DejaVu Sans";
+                        text: s.kind == 2 ? "Search for “" + s.title + "”" : s.title;
+                        font-size: Theme.font-body;
+                        color: Theme.text;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        font-family: s.kind == 2 ? "NeoSans" : "DejaVu Sans";
+                        text: s.kind == 2 ? "Web search" : s.url;
+                        font-size: Theme.font-label;
+                        color: Theme.text-dim;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+    }
+}
+
 export component BrowserApp inherits Window {
     default-font-family: "NeoSans";
     background: Theme.bg;
-    VerticalLayout {
-        AddressBar { }
-        if BrowserState.page == 0: StartPage {
-            vertical-stretch: 1;
+    // the page fills the area and the chrome slides over it: no reflow when it hides (B02)
+    if BrowserState.editing: Suggestions {
+        y: Theme.header-h;
+        height: root.height - Theme.header-h;
+    }
+    if !BrowserState.editing && BrowserState.page == 0: StartPage {
+        y: Theme.header-h;
+        height: root.height - Theme.header-h - Theme.footer-h;
+    }
+    if !BrowserState.editing && BrowserState.page != 0: FakePages {
+        y: 0;
+        height: root.height;
+        page: BrowserState.page;
+        domain: BrowserState.domain;
+        top-pad: Theme.header-h;
+        bottom-pad: Theme.footer-h;
+        content-y <=> BrowserState.page-y;
+        scrolled(dp) => { BrowserState.act("scroll", dp); }
+    }
+    AddressBar {
+        y: BrowserState.chrome-shown ? 0 : -self.height;
+        animate y { duration: 150ms; }
+    }
+
+    BrowserFooter {
+        y: BrowserState.chrome-shown ? root.height - self.height : root.height;
+        animate y { duration: 150ms; }
+    }
+
+    // br2-reading: "scroll up to show" for 2 s after the chrome hides
+    property <bool> shown: BrowserState.chrome-shown;
+    property <bool> hint;
+    changed shown => {
+        root.hint = !root.shown;
+    }
+    Timer {
+        interval: 2s;
+        running: root.hint;
+        triggered => { root.hint = false; }
+    }
+
+    if root.hint: Rectangle {
+        y: root.height - 10 * Theme.dp - self.height;
+        width: label.preferred-width + 24 * Theme.dp;
+        height: 28 * Theme.dp;
+        border-radius: 14 * Theme.dp;
+        background: #000000a6;
+        label := Text {
+            text: "scroll up to show";
+            font-size: 12.5 * Theme.dp;
+            font-weight: 500;
+            color: Theme.text-secondary;
         }
-        if BrowserState.page != 0: FakePages {
-            vertical-stretch: 1;
-            page: BrowserState.page;
-            domain: BrowserState.domain;
-        }
-        BrowserFooter { }
+    }
+
+    // shortcut: the software renderer bakes in the glyphs of string literals (and Latin-1) only, so page titles in the
+    // chrome would lose web punctuation; this never-shown text adds the common ones. A runtime font (WB4's bundled
+    // fonts) lifts the limit.
+    Text {
+        visible: false;
+        font-family: "DejaVu Sans";
+        text: "–—‘’‚“”„…•·′″‹›«»€£¥©®™°±×÷§¶†‡№";
+    }
+
+    // the stand-in engine's load (neoweb-core chrome::Loading)
+    Timer {
+        interval: 100ms;
+        running: BrowserState.loading;
+        triggered => { BrowserState.act("tick", 0); }
     }
 }

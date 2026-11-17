@@ -4,11 +4,14 @@
 //! - [`Tab`]: one opened page's history (← →, `can_back`);
 //! - [`Header`] / [`count_label`]: what the address bar and the footer show (`br2-footer-states`);
 //! - [`start`]: the start page's shortcuts (`br2-start`);
+//! - [`input`]: the address bar's text and suggestions (`br2-address`); [`chrome`]: hiding on scroll, loading;
 //! - [`Engine`] / [`FakeEngine`]: the page engine; the stand-in serves the boards' pages until Servo (WB4).
 #![no_std]
 
 extern crate alloc;
 
+pub mod chrome;
+pub mod input;
 pub mod start;
 
 use alloc::string::{String, ToString};
