@@ -144,6 +144,22 @@ component Wikipedia inherits VerticalLayout {
         Para {
             text: "Nokia moved its smartphones to Windows Phone in 2011 and handed Symbian work to Accenture; the last Symbian phone, the Nokia 808 PureView, came out in 2012.";
         }
+
+        // br2-reading's list
+        Text {
+            text: "Versions";
+            font-size: 22 * Theme.dp;
+            color: #202122;
+        }
+
+        Rectangle {
+            height: 1px;
+            background: #a2a9b1;
+        }
+
+        for v in ["S60 3rd Edition (2006)", "Symbian^1 (2009)", "Symbian^3 (2010)", "Nokia Belle (2011)"]: Para {
+            text: "•  " + v;
+        }
     }
 }
 
@@ -231,11 +247,21 @@ component Other inherits VerticalLayout {
 export component FakePages inherits Flickable {
     in property <int> page;
     in property <string> domain;
+    // room under the header and above the footer while they show (they overlay the page: B02)
+    in property <length> top-pad;
+    in property <length> bottom-pad;
+    // the offset from the top in dp, as the page scrolls (neoweb-core chrome::ChromeScroll)
+    callback scrolled(int);
+    changed content-y => {
+        root.scrolled(round(-self.content-y / Theme.dp));
+    }
     content-height: max(self.height, body.preferred-height);
     Rectangle {
         background: white;
         height: max(root.height, body.preferred-height);
         body := VerticalLayout {
+            padding-top: root.top-pad;
+            padding-bottom: root.bottom-pad;
             alignment: start;
             if root.page == 1: Wikipedia { }
             if root.page == 2: GitHub { }

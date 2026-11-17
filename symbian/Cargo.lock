@@ -2605,6 +2605,7 @@ version = "0.1.0"
 dependencies = [
  "e32",
  "neoapp",
+ "neoui-proto",
  "neoweb-core",
  "neoweb-ui",
  "slint",

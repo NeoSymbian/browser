@@ -14,6 +14,7 @@ test = false
 [dependencies]
 e32.workspace = true
 neoapp.workspace = true
+neoui-proto.workspace = true
 slint.workspace = true
 neoweb-core.workspace = true
 neoweb-ui.workspace = true
