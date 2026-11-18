@@ -11,7 +11,7 @@ checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
 [[package]]
 name = "e32"
 version = "0.1.0"
-source = "git+https://github.com/NeoSymbian/e32-rs?rev=1fc714b3498695992fce1f84943d111aa92d8125#1fc714b3498695992fce1f84943d111aa92d8125"
+source = "git+https://github.com/NeoSymbian/e32-rs?rev=645e33bac24019bcfbb8126eb09caecbe6b6f90e#645e33bac24019bcfbb8126eb09caecbe6b6f90e"
 dependencies = [
  "e32-sys",
  "linked_list_allocator",
@@ -20,7 +20,7 @@ dependencies = [
 [[package]]
 name = "e32-sys"
 version = "0.1.0"
-source = "git+https://github.com/NeoSymbian/e32-rs?rev=1fc714b3498695992fce1f84943d111aa92d8125#1fc714b3498695992fce1f84943d111aa92d8125"
+source = "git+https://github.com/NeoSymbian/e32-rs?rev=645e33bac24019bcfbb8126eb09caecbe6b6f90e#645e33bac24019bcfbb8126eb09caecbe6b6f90e"
 
 [[package]]
 name = "libc"

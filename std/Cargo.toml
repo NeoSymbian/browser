@@ -10,7 +10,7 @@ edition = "2024"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-e32 = { git = "https://github.com/NeoSymbian/e32-rs", rev = "1fc714b3498695992fce1f84943d111aa92d8125" }
+e32 = { git = "https://github.com/NeoSymbian/e32-rs", rev = "645e33bac24019bcfbb8126eb09caecbe6b6f90e" }
 libc = "0.2.191"
 
 [patch.crates-io]
