@@ -173,9 +173,7 @@ static int c_condvar_timedwait(char* d, int n) {
 
 // Not declared by P.I.P.S.'s headers (found at compile time): each a gap the Rust ports work around
 static int c_condattr_setclock(char* d, int n) { NOTSUP("pthread_condattr_setclock not in P.I.P.S.: std's condvar uses CLOCK_REALTIME"); }
-static int c_pread(char* d, int n) { NOTSUP("pread/pwrite not in P.I.P.S.: FileExt::read_at via lseek+read"); }
 static int c_posix_memalign(char* d, int n) { NOTSUP("posix_memalign not in P.I.P.S.: std's allocator aligns over malloc"); }
-static int c_poll(char* d, int n) { NOTSUP("poll() not in P.I.P.S. (struct pollfd only); select() is: poll over select"); }
 
 /// Wait up to `ms` for `fd` to be readable, with select() (P.I.P.S. has no poll()).
 static int readable(int fd, int ms) {
@@ -201,6 +199,71 @@ static int c_clocks(char* d, int n) {
 #else
     NOTSUP("no CLOCK_MONOTONIC (realtime %ld)", (long)r0.tv_sec);
 #endif
+}
+
+static const char* kFileP = "c:\\pipsprobe3.tmp";
+
+// NeoSymbian's libc.dll additions (ossrv neo_posix.cpp, browser WB2c), bound by name: stdapis' headers may predate them
+extern "C" int neo_poll(struct pollfd*, nfds_t, int) __asm__("poll");
+extern "C" ssize_t neo_pread(int, void*, size_t, off_t) __asm__("pread");
+extern "C" ssize_t neo_pwrite(int, const void*, size_t, off_t) __asm__("pwrite");
+
+static int c_poll(char* d, int n) {
+    timespec t0, t1;
+    clock_gettime(CLOCK_REALTIME, &t0);
+    if (neo_poll(0, 0, 50) != 0) FAIL("poll(none, 50 ms) errno %d", errno);
+    clock_gettime(CLOCK_REALTIME, &t1);
+    long ms = ms_between(t0, t1);
+    if (ms < 40 || ms > 500) FAIL("poll(none, 50 ms) took %ld ms", ms);
+    pollfd bad = {999, POLLIN, 0};
+    if (neo_poll(&bad, 1, 1000) != 1 || bad.revents != POLLNVAL) FAIL("bad fd: revents %d", bad.revents);
+    int fd = open(kFileP, O_CREAT | O_TRUNC | O_RDWR, 0644);
+    if (fd < 0) FAIL("open errno %d", errno);
+    pollfd f = {fd, POLLIN | POLLOUT, 0};
+    int k = neo_poll(&f, 1, 0);
+    close(fd);
+    unlink(kFileP);
+    if (k != 1 || !(f.revents & POLLOUT)) FAIL("file fd: poll %d revents %d errno %d", k, f.revents, errno);
+    OK("timeout %ld ms, POLLNVAL, file revents %d", ms, f.revents);
+}
+
+static int c_pread(char* d, int n) {
+    int fd = open(kFileP, O_CREAT | O_TRUNC | O_RDWR, 0644);
+    if (fd < 0) FAIL("open errno %d", errno);
+    const char msg[] = "0123456789";
+    write(fd, msg, 10);
+    lseek(fd, 3, SEEK_SET);
+    char buf[8] = {0};
+    ssize_t r = neo_pread(fd, buf, 4, 5);
+    ssize_t w = neo_pwrite(fd, "AB", 2, 0);
+    off_t at = lseek(fd, 0, SEEK_CUR);
+    char all[12] = {0};
+    neo_pread(fd, all, 10, 0);
+    close(fd);
+    unlink(kFileP);
+    if (r != 4 || memcmp(buf, "5678", 4)) FAIL("pread %d '%s' errno %d", (int)r, buf, errno);
+    if (w != 2 || memcmp(all, "AB23456789", 10)) FAIL("pwrite %d '%s'", (int)w, all);
+    if (at != 3) FAIL("offset moved to %ld", (long)at);
+    OK("pread/pwrite at offsets, file offset kept");
+}
+
+// The generic timer's count, read at EL0 as libc's CLOCK_MONOTONIC does (kernel CNTKCTL_EL1.EL0VCTEN, WB2c)
+__attribute__((target("arm"))) static unsigned long long cntvct() {
+    unsigned lo, hi;
+    asm volatile("mrrc p15, 1, %0, %1, c14" : "=r"(lo), "=r"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+
+static int c_cntvct(char* d, int n) {
+    unsigned f;
+    asm volatile("mrc p15, 0, %0, c14, c0, 0" : "=r"(f));
+    unsigned long long a = cntvct();
+    timespec ns = {0, 10000000};
+    nanosleep(&ns, 0);
+    unsigned long long b = cntvct();
+    long ms = f ? (long)((b - a) * 1000 / f) : -1;
+    if (!f || b <= a || ms < 8 || ms > 500) FAIL("CNTFRQ %u, +%ld ms over a 10 ms nanosleep", f, ms);
+    OK("CNTFRQ %u Hz, +%ld ms over a 10 ms nanosleep", f, ms);
 }
 
 static int c_sched_yield(char* d, int n) {
@@ -393,6 +456,7 @@ static const Check kChecks[] = {
     {"condvar_timedwait", c_condvar_timedwait},
     {"condattr_setclock", c_condattr_setclock},
     {"clocks", c_clocks},
+    {"cntvct_el0", c_cntvct},
     {"sched_yield", c_sched_yield},
     {"file_rw", c_file_rw},
     {"dir_ops", c_dir_ops},

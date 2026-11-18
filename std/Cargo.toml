@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Rust with std on NeoSymbian (docs browser-std.md, WB2c): target_os = "symbian" through the NeoSymbian/rust and
+# NeoSymbian/libc forks. Build with the `neosymbian` toolchain (tools/neosymbian-toolchain.sh) and `cargo sym`.
+[workspace]
+resolver = "3"
+members = ["stdtest", "mixtest"]
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+e32 = { git = "https://github.com/NeoSymbian/e32-rs", rev = "1fc714b3498695992fce1f84943d111aa92d8125" }
+libc = "0.2.191"
+
+[patch.crates-io]
+libc = { git = "https://github.com/NeoSymbian/libc", branch = "neosymbian" }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+
+[profile.dev]
+panic = "abort"

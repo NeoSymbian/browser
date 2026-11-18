@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
+# The pinned nightly with NeoSymbian/rust's library/ as rust-src: make it with ../tools/neosymbian-toolchain.sh
+[toolchain]
+channel = "neosymbian"
