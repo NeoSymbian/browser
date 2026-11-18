@@ -3,7 +3,7 @@
 # NeoSymbian/libc forks. Build with the `neosymbian` toolchain (tools/neosymbian-toolchain.sh) and `cargo sym`.
 [workspace]
 resolver = "3"
-members = ["stdtest", "mixtest"]
+members = ["stdtest", "mixtest", "nettest"]
 
 [workspace.package]
 edition = "2024"
@@ -15,6 +15,9 @@ libc = "0.2.191"
 
 [patch.crates-io]
 libc = { git = "https://github.com/NeoSymbian/libc", branch = "neosymbian" }
+mio = { git = "https://github.com/NeoSymbian/mio", branch = "neosymbian" }
+socket2 = { git = "https://github.com/NeoSymbian/socket2", branch = "neosymbian" }
+tokio = { git = "https://github.com/NeoSymbian/tokio", branch = "neosymbian" }
 
 [profile.release]
 panic = "abort"

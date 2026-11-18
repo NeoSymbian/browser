@@ -3,3 +3,4 @@
 # A std EXE: std's allocator is P.I.P.S. malloc on the EXE's own heap (heap=), it imports from P.I.P.S. (libs=).
 STDTEST.EXE    0xE0007003  libstdtest.a       stack=0x100000 heap=0x10000000 libs=libc,libpthread,libm
 MIXTEST.EXE    0xE0007004  libmixtest.a       rust/mixtest.cpp  stack=0x100000 heap=0x4000000 libs=libc,libpthread,libm
+NETTEST.EXE    0xE0007005  libnettest.a       stack=0x100000 heap=0x4000000 libs=libc,libpthread,libm
