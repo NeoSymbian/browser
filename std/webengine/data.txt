@@ -10,12 +10,12 @@ Resource\NeoWeb\Fonts\DejaVuSerif-Bold.ttf=neoweb/fonts/DejaVuSerif-Bold.ttf
 Resource\NeoWeb\Fonts\DejaVuSerif-BoldItalic.ttf=neoweb/fonts/DejaVuSerif-BoldItalic.ttf
 Resource\NeoWeb\Fonts\DejaVuSerif-Italic.ttf=neoweb/fonts/DejaVuSerif-Italic.ttf
 Resource\NeoWeb\Fonts\DejaVuSerif.ttf=neoweb/fonts/DejaVuSerif.ttf
-Resource\NeoWeb\Pagesont.html=neoweb/pages/font.html
+Resource\NeoWeb\Pages\font.html=neoweb/pages/font.html
 Resource\NeoWeb\Pages\gradient.png=neoweb/pages/gradient.png
 Resource\NeoWeb\Pages\images.html=neoweb/pages/images.html
 Resource\NeoWeb\Pages\index.html=neoweb/pages/index.html
 Resource\NeoWeb\Pages\js.html=neoweb/pages/js.html
 Resource\NeoWeb\Pages\long.html=neoweb/pages/long.html
 Resource\NeoWeb\Pages\photo.jpg=neoweb/pages/photo.jpg
-Resource\NeoWeb\Pages	ext.html=neoweb/pages/text.html
+Resource\NeoWeb\Pages\text.html=neoweb/pages/text.html
 Resource\NeoWeb\Pages\webfont.ttf=neoweb/pages/webfont.ttf
