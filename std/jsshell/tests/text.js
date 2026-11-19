@@ -2,7 +2,7 @@
 // JSON, RegExp, Date (UTC), errors
 const doc = { name: "neo", list: [1, 2.5, true, null, "s"], nested: { deep: { x: "é\n" } } };
 assertDeepEq(JSON.parse(JSON.stringify(doc)), doc);
-assertEq(JSON.stringify({ a: [1, { b: 2 }] }, null, 1).split("\n").length, 9);
+assertEq(JSON.stringify({ a: [1, { b: 2 }] }, null, 1).split("\n").length, 8);
 assertThrows(() => JSON.parse("{bad"), SyntaxError);
 const re = /(\d{4})-(\d{2})-(\d{2})/;
 const [, y, mo, d] = re.exec("on 2026-11-19.");

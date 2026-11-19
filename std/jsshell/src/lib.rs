@@ -32,6 +32,83 @@ const LANGUAGE: &[(&str, &str)] = &[
 ];
 const GC_STRESS: &str = include_str!("../tests/gc.js");
 
+// ---- the job queue (promise reactions): SpiderMonkey keeps the microtasks; the embedder's JobQueue says when they
+// run. mozjs initialises self-hosting in Runtime::new, too late for UseInternalJobQueues, so the shell gives each
+// runtime a RustJobQueue (mozjs's glue) whose runJobs drains them as SpiderMonkey's own InternalJobQueue does.
+
+unsafe extern "C" fn jq_host_defined_data(
+    cx: *mut RawJSContext,
+    incumbent: mozjs::jsapi::MutableHandleObject,
+    data: mozjs::jsapi::MutableHandleObject,
+) -> bool {
+    unsafe {
+        *incumbent.ptr = mozjs::jsapi::CurrentGlobalOrNull(cx);
+        *data.ptr = ptr::null_mut();
+    }
+    true
+}
+
+unsafe extern "C" fn jq_host_defined_global(
+    cx: *mut RawJSContext,
+    data: mozjs::jsapi::MutableHandleObject,
+) -> bool {
+    unsafe { *data.ptr = mozjs::jsapi::CurrentGlobalOrNull(cx) };
+    true
+}
+
+unsafe extern "C" fn jq_run_jobs(raw: *mut RawJSContext) {
+    let mut cx = unsafe { JSContext::from_ptr(NonNull::new(raw).unwrap()) };
+    unsafe {
+        while mozjs::jsapi::HasAnyMicroTasks(raw) {
+            rooted!(&in(cx) let task = mozjs::jsapi::DequeueNextRegularMicroTask(raw));
+            if task.get().is_null() {
+                break; // only debugger microtasks left: none here
+            }
+            rooted!(&in(cx) let job = mozjs::jsapi::ToMaybeWrappedJSMicroTask(&task.get()));
+            if job.get().is_null() {
+                continue;
+            }
+            if !mozjs::jsapi::HasAnyMicroTasks(raw) {
+                mozjs::jsapi::JobQueueIsEmpty(raw);
+            }
+            let global = mozjs::jsapi::GetExecutionGlobalFromJSMicroTask(job.get());
+            if global.is_null() {
+                continue;
+            }
+            let old = mozjs::jsapi::EnterRealm(raw, global);
+            let ok = mozjs::jsapi::RunJSMicroTask(raw, job.handle().into());
+            mozjs::jsapi::LeaveRealm(raw, old);
+            if !ok && mozjs::jsapi::JS_IsExceptionPending(raw) {
+                println!("js uncaught in a job: {}", take_exception(&mut cx));
+            }
+        }
+    }
+}
+
+unsafe extern "C" fn jq_trace(_trc: *mut mozjs::jsapi::JSTracer, _v: *mut Value) {}
+
+static JOB_QUEUE_TRAPS: mozjs::glue::JobQueueTraps = mozjs::glue::JobQueueTraps {
+    getHostDefinedData: Some(jq_host_defined_data),
+    getHostDefinedGlobal: Some(jq_host_defined_global),
+    runJobs: Some(jq_run_jobs),
+    traceNonGCThingMicroTask: Some(jq_trace),
+};
+
+/// A runtime with a job queue (promise reactions run by RunJobs): `parent` makes it a child runtime for another
+/// thread. The queue lives as long as the process (one per runtime, a few bytes).
+fn new_runtime(engine: Option<&JSEngine>, parent: Option<ParentRuntime>) -> Runtime {
+    let mut rt = match (engine, parent) {
+        (_, Some(p)) => unsafe { Runtime::create_with_parent(p) },
+        (Some(e), None) => Runtime::new(e.handle()),
+        (None, None) => unreachable!(),
+    };
+    unsafe {
+        let queue = mozjs::glue::CreateJobQueue(&JOB_QUEUE_TRAPS);
+        SetJobQueue(rt.cx(), queue as *mut mozjs::jsapi::JobQueue);
+    }
+    rt
+}
+
 /// The text of `cx`'s pending exception (cleared), or why there is none.
 fn take_exception(cx: &mut JSContext) -> String {
     unsafe {
@@ -103,7 +180,9 @@ fn run_script(
             &*options)
     });
     if global.get().is_null() {
-        return Err(format!("no global: {}", take_exception(cx)));
+        // no realm to read the exception in (JS_GetPendingException would fault): drop it
+        unsafe { JS_ClearPendingException(cx) };
+        return Err("no global (out of memory)".into());
     }
     let mut realm = AutoRealm::new_from_handle(cx, global.handle());
     let (global, cx) = realm.global_and_reborrow();
@@ -174,34 +253,47 @@ fn report(name: &str, r: Result<String, String>, ok: &mut u32, failed: &mut u32)
     }
 }
 
-/// A runtime of its own with the GC heap capped at `max_bytes`: `script` must fail with an out-of-memory error, and
-/// the runtime must work again afterwards.
-fn oom(parent: ParentRuntime, max_bytes: u32, script: &str) -> Result<String, String> {
-    let mut rt = unsafe { Runtime::create_with_parent(parent) };
-    unsafe { JS_SetGCParameter(rt.cx(), JSGCParamKey::JSGC_MAX_BYTES, max_bytes) };
-    let err = match run_script(&mut rt, "oom", script, None) {
-        Ok(_) => return Err("the allocation never failed".into()),
-        Err(e) => e,
-    };
-    if !err.contains("out of memory")
-        && !err.contains("uncatchable")
-        && !err.contains("allocation size overflow")
-    {
-        return Err(format!("failed, but not for memory: {err}"));
-    }
-    run_script(
-        &mut rt,
-        "after-oom",
-        "assertEq([1, 2, 3].map((v) => v * 2).join(), '2,4,6');",
-        None,
-    )
-    .map_err(|e| format!("not usable after the OOM: {e}"))?;
-    Ok(format!("{err}; usable afterwards"))
+/// A runtime of its own (on a thread of its own: SpiderMonkey allows one context per thread) with the GC heap capped
+/// at `max_bytes`: `script` must fail with an out-of-memory error, and the runtime must work again afterwards.
+fn oom(parent: ParentRuntime, max_bytes: u32, script: &'static str) -> Result<String, String> {
+    std::thread::Builder::new()
+        .name("js-oom".into())
+        .stack_size(2 << 20)
+        .spawn(move || {
+            let mut rt = new_runtime(None, Some(parent));
+            unsafe { JS_SetGCParameter(rt.cx(), JSGCParamKey::JSGC_MAX_BYTES, max_bytes) };
+            let err = match run_script(&mut rt, "oom", script, None) {
+                Ok(_) => return Err("the allocation never failed".to_string()),
+                Err(e) => e,
+            };
+            if !err.contains("out of memory")
+                && !err.contains("uncatchable")
+                && !err.contains("allocation size overflow")
+            {
+                return Err(format!("failed, but not for memory: {err}"));
+            }
+            // lift the cap and give the memory back before checking the runtime still works
+            unsafe {
+                JS_SetGCParameter(rt.cx(), JSGCParamKey::JSGC_MAX_BYTES, u32::MAX);
+                NonIncrementalGC(rt.cx(), GCOptions::Shrink, GCReason::API);
+            }
+            run_script(
+                &mut rt,
+                "after-oom",
+                "assertEq([1, 2, 3].map((v) => v * 2).join(), '2,4,6');",
+                None,
+            )
+            .map_err(|e| format!("not usable after the OOM: {e}"))?;
+            Ok(format!("{err}; usable afterwards"))
+        })
+        .expect("thread")
+        .join()
+        .unwrap_or_else(|_| Err("panicked".into()))
 }
 
 fn suite(engine: &JSEngine) -> i32 {
     let (mut ok, mut failed) = (0, 0);
-    let mut rt = Runtime::new(engine.handle());
+    let mut rt = new_runtime(Some(engine), None);
     for (name, src) in LANGUAGE {
         let check = (*name == "async").then_some("asyncDone");
         report(
@@ -229,7 +321,7 @@ fn suite(engine: &JSEngine) -> i32 {
                 .name(format!("js{i}"))
                 .stack_size(2 << 20)
                 .spawn(move || {
-                    let mut child = unsafe { Runtime::create_with_parent(parent) };
+                    let mut child = new_runtime(None, Some(parent));
                     language(&mut child)
                 })
                 .expect("thread")
@@ -280,7 +372,7 @@ fn main() -> i32 {
     match args.first().map(String::as_str) {
         None => suite(&engine),
         Some("-e") => {
-            let mut rt = Runtime::new(engine.handle());
+            let mut rt = new_runtime(Some(&engine), None);
             let code = args[1..].join(" ");
             let r = run_script(
                 &mut rt,
@@ -294,7 +386,7 @@ fn main() -> i32 {
             r.is_err() as i32
         }
         Some(_) => {
-            let mut rt = Runtime::new(engine.handle());
+            let mut rt = new_runtime(Some(&engine), None);
             let (mut ok, mut failed) = (0, 0);
             for path in &args {
                 let r = std::fs::read_to_string(path)

@@ -4,7 +4,7 @@
 #   ~/.local/share/neosymbian-sdk/
 #     arm-gnu/          Arm GNU Toolchain 14.2.rel1 arm-none-eabi (darwin-arm64), the version build's toolchain image has
 #     epoc32/include/   the device headers (P.I.P.S. stdapis, e32) and build's symbian_gcc_prefix.h (IMPORT_C, Int64,
-#                       __TText, varargs for a stock GCC), copied from a ZimaOS build volume
+#                       __TText, varargs for a stock GCC), copied from a build volume (and the .def files below)
 #     bin/armv7-symbian-{gcc,g++,cpp}  wrappers: ARMv7 + NEON, softfp calls, word relocations only (E32 images),
 #                       libstdc++'s headers over P.I.P.S.'s C headers (newlib's are never seen), symbian/sdk-compat first
 #     bin/armv7-symbian-{ar,ranlib,nm,objdump,readelf,strip,objcopy}
@@ -12,10 +12,14 @@
 #     lib/libneostubs.a  an empty stub for every export of libc, libm, libpthread and euser (their frozen .def files) and
 #                       for cxxrt's names: what a link on the Mac resolves against (configure's link checks; the real
 #                       link, into an E32 image, is build_rust_exe.py's on the build machine). Never on the device.
-# Usage: tools/symbian-sdk.sh [BUILD_VOLUME]   (default neosymbian-build; any volume with a built .epoc32 will do)
+# Usage: tools/symbian-sdk.sh [HOST:VOLUME]
+#   HOST:VOLUME  where the device headers come from: a build volume with a built .epoc32, on HOST = an ssh host
+#                (zimaos) or multipass/<vm> (a Multipass VM with Docker). Without it the headers already in the SDK
+#                are kept (the first run needs one); the wrappers, compat headers and stubs are always rewritten.
 set -eu
 SDK="${NEOSYMBIAN_SDK:-$HOME/.local/share/neosymbian-sdk}"
-VOLUME="${1:-neosymbian-build}"
+FROM="${1:-}"
+[ -n "$FROM" ] || [ -d "$SDK/epoc32/include/stdapis" ] || { echo "first run: give HOST:VOLUME for the headers" >&2; exit 1; }
 ARM=arm-gnu-toolchain-14.2.rel1-darwin-arm64-arm-none-eabi
 ARM_SHA256=c7c78ffab9bebfce91d99d3c24da6bf4b81c01e16cf551eb2ff9f25b9e0a3818
 mkdir -p "$SDK/bin"
@@ -30,10 +34,17 @@ if [ ! -x "$SDK/arm-gnu/bin/arm-none-eabi-g++" ]; then
 	xattr -dr com.apple.quarantine "$SDK/arm-gnu" 2>/dev/null || true
 fi
 
-echo "device headers from volume $VOLUME"
+# run a command in an alpine container over the build volume, on the chosen host (read-only)
+vol() {
+	case "${FROM%%:*}" in
+	multipass/*) h="${FROM%%:*}"; multipass exec "${h#multipass/}" -- sudo docker run --rm -v "${FROM#*:}:/b:ro" alpine "$@" 2>/dev/null ;;
+	*) ssh "${FROM%%:*}" "DOCKER_CONFIG=/DATA/AppData/docker-config docker run --rm -v ${FROM#*:}:/b:ro alpine $*" ;;
+	esac
+}
+if [ -n "$FROM" ]; then
+echo "device headers from $FROM"
 rm -rf "$SDK/epoc32.new" && mkdir -p "$SDK/epoc32.new"
-ssh zimaos "DOCKER_CONFIG=/DATA/AppData/docker-config docker run --rm -v $VOLUME:/b:ro alpine tar -C /b -cf - .epoc32/include toolchain/symbian_gcc_prefix.h" \
-	| tar -C "$SDK/epoc32.new" -xf -
+vol tar -C /b -cf - .epoc32/include toolchain/symbian_gcc_prefix.h | tar -C "$SDK/epoc32.new" -xf -
 mv "$SDK/epoc32.new/.epoc32/include" "$SDK/epoc32.new/include" && rmdir "$SDK/epoc32.new/.epoc32"
 mv "$SDK/epoc32.new/toolchain/symbian_gcc_prefix.h" "$SDK/epoc32.new/include/" && rmdir "$SDK/epoc32.new/toolchain"
 [ -f "$SDK/epoc32.new/include/stdapis/stdlib.h" ] || { echo "no stdapis in $VOLUME" >&2; exit 1; }
@@ -42,10 +53,10 @@ for d in src/oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore/libc/eabi/libcu.def
 	src/oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore/libm/eabi/libmu.def \
 	src/oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore/libpthread/eabi/libpthreadu.def \
 	src/oss.FCL.sf.os.kernelhwsrv/kernel/eka/eabi/euseru.def; do
-	ssh zimaos "DOCKER_CONFIG=/DATA/AppData/docker-config docker run --rm -v $VOLUME:/b:ro alpine cat /b/$d" \
-		> "$SDK/epoc32.new/def/$(basename "$d")"
+	vol cat "/b/$d" > "$SDK/epoc32.new/def/$(basename "$d")"
 done
 rm -rf "$SDK/epoc32" && mv "$SDK/epoc32.new" "$SDK/epoc32"
+fi
 
 # sdk-compat: include/ is searched first, c/ between libstdc++'s headers and P.I.P.S.'s (where <cmath>'s
 # #include_next <math.h> lands)
@@ -62,7 +73,10 @@ cat > "$SDK/bin/armv7-symbian-env" <<EOF
 SDK="$SDK"
 ARCH="$FLAGS -mword-relocations -mno-unaligned-access"
 # what the 2010 user side and P.I.P.S. expect (build/toolchain/symcc), plus softfp calls (__SOFTFP=)
-ABI="-fshort-wchar -fno-short-enums -fno-exceptions -fno-strict-aliasing -fno-lifetime-dse -fno-delete-null-pointer-checks -ffunction-sections -fdata-sections -include $SDK/epoc32/include/symbian_gcc_prefix.h -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__"
+# build's Symbian prefix header, force-included when compiling (not for -E: its typedefs would land in what is
+# preprocessed, e.g. SpiderMonkey's self-hosted JavaScript)
+PREFIX="-include $SDK/epoc32/include/symbian_gcc_prefix.h"
+ABI="-fshort-wchar -fno-short-enums -fno-exceptions -fno-strict-aliasing -fno-lifetime-dse -fno-delete-null-pointer-checks -ffunction-sections -fdata-sections -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__"
 # no newlib: libstdc++'s headers, then P.I.P.S.'s C headers, then GCC's own (stddef, stdarg, arm_neon), then e32's
 INC_C="-nostdinc -isystem $SDK/compat -isystem $SDK/compat-c -isystem $SDK/epoc32/include/stdapis -isystem $SDK/arm-gnu/lib/gcc/arm-none-eabi/$VER/include -isystem $SDK/epoc32/include"
 INC_CXX="-nostdinc -nostdinc++ -isystem $SDK/compat -isystem $CXXINC -isystem $CXXINC/arm-none-eabi/$MULTI -isystem $CXXINC/backward -isystem $SDK/compat-c -isystem $SDK/epoc32/include/stdapis -isystem $SDK/arm-gnu/lib/gcc/arm-none-eabi/$VER/include -isystem $SDK/epoc32/include"
@@ -95,7 +109,7 @@ for tool in gcc g++ cpp; do
 case $tool in g++) INC="\$INC_CXX" ;; *) INC="\$INC_C" ;; esac
 # a link (no -c/-E/-S/-M): against the stubs, never newlib
 LINK="-nostdlib -L$SDK/lib -Wl,--start-group -lneostubs -lgcc -Wl,--end-group -Wl,--no-warn-mismatch -Wl,--defsym,_start=0"
-for a in "\$@"; do case "\$a" in -c|-E|-S|-M|-MM) LINK= ;; esac; done
+for a in "\$@"; do case "\$a" in -c|-E|-S|-M|-MM) LINK= ;; esac; case "\$a" in -E) PREFIX= ;; esac; done
 [ "$tool" = cpp ] && LINK=
 # no position-independent code: an E32 image takes absolute word relocations only (and nothing here is a DSO)
 for a do
@@ -104,7 +118,7 @@ for a do
 	set -- "\$@" "\$a"
 done
 # the target's ABI flags last: they win over any a caller adds (cc-rs's guesses for an unknown target)
-exec "$SDK/arm-gnu/bin/arm-none-eabi-$tool" \$INC "\$@" \$ABI \$ARCH \$LINK
+exec "$SDK/arm-gnu/bin/arm-none-eabi-$tool" \$PREFIX \$INC "\$@" \$ABI \$ARCH \$LINK
 EOF
 	chmod +x "$SDK/bin/armv7-symbian-$tool"
 done
