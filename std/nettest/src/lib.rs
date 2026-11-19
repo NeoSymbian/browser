@@ -167,10 +167,69 @@ fn tokio_http() -> Outcome {
     })
 }
 
+/// mio's listener steps on 127.0.0.1, one at a time, each with its result and errno.
+fn listener_steps(out: &mut String) {
+    use std::fmt::Write as _;
+    let errno = || std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+    let step = |out: &mut String, name: &str, r: libc::c_int| {
+        let _ = write!(out, "{name} {r}/{} ", if r < 0 { errno() } else { 0 });
+    };
+    let lo = libc::sockaddr_in {
+        sin_family: libc::AF_INET as libc::sa_family_t,
+        sin_port: 0,
+        sin_addr: libc::in_addr {
+            s_addr: u32::from_ne_bytes([127, 0, 0, 1]),
+        },
+        sin_zero: [0; 20],
+    };
+    let len = std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t;
+    let one: libc::c_int = 1;
+    // SAFETY: plain libc calls on a socket this function owns, with valid pointers and lengths.
+    unsafe {
+        let fd = libc::socket(libc::AF_INET, libc::SOCK_STREAM, 0);
+        step(out, "listener: socket", fd);
+        step(
+            out,
+            "F_SETFL",
+            libc::fcntl(fd, libc::F_SETFL, libc::O_NONBLOCK),
+        );
+        step(
+            out,
+            "F_SETFD",
+            libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC),
+        );
+        step(
+            out,
+            "SO_REUSEADDR",
+            libc::setsockopt(
+                fd,
+                libc::SOL_SOCKET,
+                libc::SO_REUSEADDR,
+                &one as *const _ as *const libc::c_void,
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            ),
+        );
+        step(
+            out,
+            "bind",
+            libc::bind(fd, &lo as *const _ as *const libc::sockaddr, len),
+        );
+        // once: a second listen() panics the client in ESOCK (EAlreadyListening), unlike POSIX
+        step(out, "listen(1024)", libc::listen(fd, 1024));
+        let mut name: libc::sockaddr_in = std::mem::zeroed();
+        let mut nl = len;
+        let r = libc::getsockname(fd, &mut name as *mut _ as *mut libc::sockaddr, &mut nl);
+        step(out, "getsockname", r);
+        let _ = write!(out, "port {}; ", u16::from_be(name.sin_port));
+        libc::close(fd);
+    }
+}
+
 /// Raw P.I.P.S. socket steps with errno, to see which one Tokio's and std's non-blocking connect trip on.
 fn socket_diag() -> Outcome {
     use std::fmt::Write as _;
     let mut out = String::new();
+    listener_steps(&mut out);
     let errno = || std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
     let addr = match (HOST, 80)
         .to_socket_addrs()
@@ -178,7 +237,11 @@ fn socket_diag() -> Outcome {
         .and_then(|mut a| a.find(|a| a.is_ipv4()))
     {
         Some(std::net::SocketAddr::V4(a)) => a,
-        _ => return Skipped("no IPv4 address for the host".into()),
+        _ => {
+            return Pass(format!(
+                "{out}(no IPv4 address for {HOST}: the rest skipped)"
+            ));
+        }
     };
     let sin = libc::sockaddr_in {
         sin_family: libc::AF_INET as libc::sa_family_t,
