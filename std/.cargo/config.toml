@@ -15,6 +15,8 @@ RUST_TARGET_PATH = { value = "targets", relative = true }
 CC_armv7a_symbian_eabi = "armv7-symbian-gcc"
 CXX_armv7a_symbian_eabi = "armv7-symbian-g++"
 AR_armv7a_symbian_eabi = "armv7-symbian-ar"
+# C only: aws-lc names pthread_rwlock_t without including <pthread.h> off glibc (symbian/sdk-compat/c/pthread.h adds it)
+CFLAGS_armv7a_symbian_eabi = "-include pthread.h"
 LIBZ_SYS_STATIC = "1"
 # sqlite: no mmap (P.I.P.S.'s is unusable), no extension loading
 LIBSQLITE3_FLAGS = "-DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_OMIT_LOAD_EXTENSION"

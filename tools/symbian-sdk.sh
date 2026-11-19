@@ -76,7 +76,7 @@ ARCH="$FLAGS -mword-relocations -mno-unaligned-access"
 # build's Symbian prefix header, force-included when compiling (not for -E: its typedefs would land in what is
 # preprocessed, e.g. SpiderMonkey's self-hosted JavaScript)
 PREFIX="-include $SDK/epoc32/include/symbian_gcc_prefix.h"
-ABI="-fshort-wchar -fno-short-enums -fno-exceptions -fno-strict-aliasing -fno-lifetime-dse -fno-delete-null-pointer-checks -ffunction-sections -fdata-sections -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__ -D__LONG_LONG_SUPPORTED"
+ABI="-fshort-wchar -fno-short-enums -fno-exceptions -fno-strict-aliasing -fno-lifetime-dse -fno-delete-null-pointer-checks -ffunction-sections -fdata-sections -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__ -D__LONG_LONG_SUPPORTED -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS"
 # no newlib: libstdc++'s headers, then P.I.P.S.'s C headers, then GCC's own (stddef, stdarg, arm_neon), then e32's
 INC_C="-nostdinc -isystem $SDK/compat -isystem $SDK/compat-c -isystem $SDK/epoc32/include/stdapis -isystem $SDK/arm-gnu/lib/gcc/arm-none-eabi/$VER/include -isystem $SDK/epoc32/include"
 INC_CXX="-nostdinc -nostdinc++ -isystem $SDK/compat -isystem $CXXINC -isystem $CXXINC/arm-none-eabi/$MULTI -isystem $CXXINC/backward -isystem $SDK/compat-c -isystem $SDK/epoc32/include/stdapis -isystem $SDK/arm-gnu/lib/gcc/arm-none-eabi/$VER/include -isystem $SDK/epoc32/include"
@@ -128,7 +128,7 @@ done
 {
 	printf '%s\n' --target=armv7a-none-eabi -mfloat-abi=softfp -mfpu=neon -fshort-wchar -fno-short-enums -nostdlibinc
 	printf '%s\n' -include "$SDK/epoc32/include/symbian_gcc_prefix.h"
-	for d in -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__ -D__LONG_LONG_SUPPORTED; do
+	for d in -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__ -D__LONG_LONG_SUPPORTED -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS; do
 		printf '%s\n' "$d"
 	done
 	for d in "$SDK/compat" "$CXXINC" "$CXXINC/arm-none-eabi/$MULTI" "$CXXINC/backward" "$SDK/compat-c" \
