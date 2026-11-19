@@ -3,7 +3,7 @@
 # NeoSymbian/libc forks. Build with the `neosymbian` toolchain (tools/neosymbian-toolchain.sh) and `cargo sym`.
 [workspace]
 resolver = "3"
-members = ["stdtest", "mixtest", "nettest"]
+members = ["stdtest", "mixtest", "nettest", "symbian-cc", "cxxrt", "cxxsmoke"]
 
 [workspace.package]
 edition = "2024"

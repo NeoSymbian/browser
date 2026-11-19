@@ -1,0 +1,16 @@
+[package]
+name = "cxxsmoke"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+e32.workspace = true
+cxxrt = { path = "../cxxrt" }
+
+[build-dependencies]
+symbian-cc = { path = "../symbian-cc" }
