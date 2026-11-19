@@ -3,6 +3,8 @@
  * calls fail with ENOTTY (browser std/cxxrt). */
 #ifndef NEOSYMBIAN_TERMIOS_H
 #define NEOSYMBIAN_TERMIOS_H
+/* as glibc's termios.h brings it (aws-lc's console.c uses signal and sig_atomic_t) */
+#include <signal.h>
 typedef unsigned int tcflag_t;
 typedef unsigned char cc_t;
 struct termios {
