@@ -1,0 +1,10 @@
+[package]
+name = "cxxrt"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "The C++ runtime pieces ARMv7 C++ on NeoSymbian needs: thread-safe statics, emulated TLS"
+
+[build-dependencies]
+symbian-cc = { path = "../symbian-cc" }

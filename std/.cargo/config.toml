@@ -4,3 +4,9 @@
 [alias]
 sym = "build --release --target targets/armv7a-symbian-eabi.json -Zjson-target-spec -Zbuild-std=std,panic_abort"
 
+
+[env]
+# mozjs_sys: SpiderMonkey from source (no prebuilt archive exists for armv7a-symbian-eabi)
+MOZJS_FROM_SOURCE = "1"
+# build scripts that call rustc for the target by name (autocfg) find its JSON here
+RUST_TARGET_PATH = { value = "targets", relative = true }
