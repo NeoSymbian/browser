@@ -5,3 +5,4 @@ STDTEST.EXE    0xE0007003  libstdtest.a       stack=0x100000 heap=0x10000000 lib
 MIXTEST.EXE    0xE0007004  libmixtest.a       rust/mixtest.cpp  stack=0x100000 heap=0x4000000 libs=libc,libpthread,libm
 NETTEST.EXE    0xE0007005  libnettest.a       stack=0x100000 heap=0x4000000 libs=libc,libpthread,libm
 CXXSMOKE.EXE   0xE0007007  libcxxsmoke.a      stack=0x100000 heap=0x4000000 libs=libc,libpthread,libm
+JSSHELL.EXE    0xE0007006  libjsshell.a       stack=0x800000 heap=0x8000000 libs=libc,libpthread,libm
