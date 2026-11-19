@@ -3127,7 +3127,7 @@ checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 [[package]]
 name = "libc"
 version = "0.2.191"
-source = "git+https://github.com/NeoSymbian/libc?branch=neosymbian#7d9765da1fc5585086e93e3f5e5b1f791bbddfcd"
+source = "git+https://github.com/NeoSymbian/libc?branch=neosymbian#71655863ddc299363f58c0a3bb5b2d0e819bf12a"
 
 [[package]]
 name = "libfuzzer-sys"

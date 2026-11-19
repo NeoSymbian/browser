@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 namespace {
 
@@ -184,6 +185,18 @@ class Math {
 public:
 	static unsigned long Random();
 };
+
+// ---- POSIX pieces P.I.P.S. lacks (declared by symbian/sdk-compat/c): read-write locks over a mutex, fchown
+extern "C" {
+int pthread_rwlock_init(pthread_rwlock_t* l, const pthread_rwlockattr_t*) { return pthread_mutex_init(&l->m, nullptr); }
+int pthread_rwlock_destroy(pthread_rwlock_t* l) { return pthread_mutex_destroy(&l->m); }
+int pthread_rwlock_rdlock(pthread_rwlock_t* l) { return pthread_mutex_lock(&l->m); }
+int pthread_rwlock_wrlock(pthread_rwlock_t* l) { return pthread_mutex_lock(&l->m); }
+int pthread_rwlock_tryrdlock(pthread_rwlock_t* l) { return pthread_mutex_trylock(&l->m); }
+int pthread_rwlock_trywrlock(pthread_rwlock_t* l) { return pthread_mutex_trylock(&l->m); }
+int pthread_rwlock_unlock(pthread_rwlock_t* l) { return pthread_mutex_unlock(&l->m); }
+int fchown(int, uid_t, gid_t) { return 0; }
+}
 
 // euser's User::AllocLen, declared the same way: P.I.P.S.'s malloc allocates from the thread's RHeap
 class User {
