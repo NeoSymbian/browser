@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <termios.h>
 #include <unistd.h>
 
 namespace {
@@ -196,6 +197,8 @@ int pthread_rwlock_tryrdlock(pthread_rwlock_t* l) { return pthread_mutex_trylock
 int pthread_rwlock_trywrlock(pthread_rwlock_t* l) { return pthread_mutex_trylock(&l->m); }
 int pthread_rwlock_unlock(pthread_rwlock_t* l) { return pthread_mutex_unlock(&l->m); }
 int fchown(int, uid_t, gid_t) { return 0; }
+int tcgetattr(int, struct termios*) { errno = ENOTTY; return -1; }
+int tcsetattr(int, int, const struct termios*) { errno = ENOTTY; return -1; }
 }
 
 // euser's User::AllocLen, declared the same way: P.I.P.S.'s malloc allocates from the thread's RHeap

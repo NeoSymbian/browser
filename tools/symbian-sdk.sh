@@ -107,15 +107,18 @@ for tool in gcc g++ cpp; do
 #!/bin/sh
 . "$SDK/bin/armv7-symbian-env"
 case $tool in g++) INC="\$INC_CXX" ;; *) INC="\$INC_C" ;; esac
+# C: aws-lc names pthread_rwlock_t without including <pthread.h> off glibc (sdk-compat/c/pthread.h adds the type)
+[ "$tool" = gcc ] && PREFIX="\$PREFIX -include pthread.h"
 # a link (no -c/-E/-S/-M): against the stubs, never newlib
 LINK="-nostdlib -L$SDK/lib -Wl,--start-group -lneostubs -lgcc -Wl,--end-group -Wl,--no-warn-mismatch -Wl,--defsym,_start=0"
 # no prefix header in a preprocess (-E) or an assembly source (.S: its C typedefs are not assembly)
 for a in "\$@"; do case "\$a" in -c|-E|-S|-M|-MM) LINK= ;; esac; case "\$a" in -E|*.S|*.s|assembler*) PREFIX= ;; esac; done
 [ "$tool" = cpp ] && LINK=
-# no position-independent code: an E32 image takes absolute word relocations only (and nothing here is a DSO)
+# no position-independent code: an E32 image takes absolute word relocations only (and nothing here is a DSO);
+# no -pthread: P.I.P.S. threads need no flag (bare-metal GCC rejects it)
 for a do
 	shift
-	case "\$a" in -fPIC|-fpic|-fPIE|-fpie|-pie|-shared) continue ;; esac
+	case "\$a" in -fPIC|-fpic|-fPIE|-fpie|-pie|-shared|-pthread) continue ;; esac
 	set -- "\$@" "\$a"
 done
 # the target's ABI flags last: they win over any a caller adds (cc-rs's guesses for an unknown target)
