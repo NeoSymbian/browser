@@ -81,6 +81,12 @@ fn tokio_tcp_loopback() -> Outcome {
         });
         let mut c = match tokio::net::TcpStream::connect(addr).await {
             Ok(c) => c,
+            // the phone: NeoNet has no loopback interface on a real link (only on boards without Wi-Fi)
+            Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
+                return Skipped(format!(
+                    "listening on {addr}, but no loopback interface here: {e}"
+                ));
+            }
             Err(e) => return Failed(format!("connect {addr}: {e}")),
         };
         c.write_all(b"ping").await.unwrap();
@@ -116,7 +122,12 @@ fn std_http() -> Outcome {
         Some(s) => s,
         None => return Failed(format!("connect to {addrs:?} failed")),
     };
-    s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    // P.I.P.S. has no SO_RCVTIMEO (ENOPROTOOPT, browser-std.md): said in the result, the fetch goes on without it
+    let timeout = match s.set_read_timeout(Some(Duration::from_secs(10))) {
+        Ok(()) => "",
+        Err(e) if e.raw_os_error() == Some(libc::ENOPROTOOPT) => " (no SO_RCVTIMEO)",
+        Err(e) => return Failed(format!("set_read_timeout: {e}")),
+    };
     s.write_all(format!("GET / HTTP/1.0\r\nHost: {HOST}\r\n\r\n").as_bytes())
         .unwrap();
     let mut resp = Vec::new();
@@ -126,7 +137,7 @@ fn std_http() -> Outcome {
         return Failed(format!("response {line:?} ({} bytes)", resp.len()));
     }
     Pass(format!(
-        "{line:?}, {} bytes, DNS {dns} ms -> {}, total {} ms",
+        "{line:?}, {} bytes, DNS {dns} ms -> {}, total {} ms{timeout}",
         resp.len(),
         addrs[0],
         t.elapsed().as_millis()
