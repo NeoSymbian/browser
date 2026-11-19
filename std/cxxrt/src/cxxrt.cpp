@@ -2,10 +2,13 @@
 // The C++ runtime for ARMv7 C++ on NeoSymbian (cxxrt/src/lib.rs): __cxa_guard_* and __emutls_get_address over
 // P.I.P.S.'s pthreads (GCC for arm-none-eabi emits calls to both: function-local statics are thread-safe by default,
 // and thread_local uses emulated TLS), and libstdc++'s std::__throw_* helpers as fatal errors.
+#include <chrono>
+#include <errno.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
+#include <time.h>
 
 namespace {
 
@@ -158,3 +161,43 @@ namespace std {
 }
 [[noreturn]] __attribute__((weak)) void __throw_system_error(int) { cxxrt_fatal("__throw_system_error", nullptr); }
 }  // namespace std
+
+// ---- the one libstdc++ function body std::this_thread::sleep_for reaches (it lives in libstdc++'s .a)
+namespace std::this_thread {
+__attribute__((weak)) void __sleep_for(chrono::seconds aSecs, chrono::nanoseconds aNsecs) {
+	struct timespec t = {static_cast<time_t>(aSecs.count()), static_cast<long>(aNsecs.count())};
+	while (nanosleep(&t, &t) == -1 && errno == EINTR) {
+	}
+}
+}  // namespace std::this_thread
+
+// ---- the stack protector (SpiderMonkey's hardening builds with -fstack-protector-strong): the canary, from the
+// kernel's secure generator before any other constructor runs (priority 101; efile.ld sorts .init_array by priority)
+extern "C" {
+uintptr_t __stack_chk_guard = 0xe0d4c0deu;
+[[noreturn]] void __stack_chk_fail() { cxxrt_fatal("stack smashing detected", nullptr); }
+}
+
+// euser's Math::Random (the secure generator), declared here: e32's headers and libstdc++'s <new> both define
+// placement new
+class Math {
+public:
+	static unsigned long Random();
+};
+
+__attribute__((constructor(101))) static void SeedStackGuard() {
+	__stack_chk_guard = Math::Random() | 0xffu;  // never 0 in the low byte: a C string cannot copy over it
+}
+
+// ---- array new/delete: as the single-object forms (build's start-up code and euser provide those); weak, in case
+// the EXE's start-up code provides them too
+__attribute__((weak)) void* operator new[](std::size_t aSize) { return ::operator new(aSize); }
+__attribute__((weak)) void operator delete[](void* aPtr) noexcept { ::operator delete(aPtr); }
+
+// ---- the ARM EH personality routines the C++ code's unwind tables name (e32 has __aeabi_unwind_cpp_pr0): nothing
+// unwinds here (Rust panics abort, the C++ has no exceptions), and leaving them undefined would pull libgcc's
+// unwinder in over Rust std's _Unwind_* stubs
+extern "C" {
+[[noreturn]] void __aeabi_unwind_cpp_pr1() { cxxrt_fatal("unwinding (__aeabi_unwind_cpp_pr1)", nullptr); }
+[[noreturn]] void __aeabi_unwind_cpp_pr2() { cxxrt_fatal("unwinding (__aeabi_unwind_cpp_pr2)", nullptr); }
+}

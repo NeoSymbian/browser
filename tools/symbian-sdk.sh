@@ -8,6 +8,10 @@
 #     bin/armv7-symbian-{gcc,g++,cpp}  wrappers: ARMv7 + NEON, softfp calls, word relocations only (E32 images),
 #                       libstdc++'s headers over P.I.P.S.'s C headers (newlib's are never seen), symbian/sdk-compat first
 #     bin/armv7-symbian-{ar,ranlib,nm,objdump,readelf,strip,objcopy}
+#     bin/armv7-symbian-clang-args  the same target for libclang (bindgen), one argument per line
+#     lib/libneostubs.a  an empty stub for every export of libc, libm, libpthread and euser (their frozen .def files) and
+#                       for cxxrt's names: what a link on the Mac resolves against (configure's link checks; the real
+#                       link, into an E32 image, is build_rust_exe.py's on the build machine). Never on the device.
 # Usage: tools/symbian-sdk.sh [BUILD_VOLUME]   (default neosymbian-build; any volume with a built .epoc32 will do)
 set -eu
 SDK="${NEOSYMBIAN_SDK:-$HOME/.local/share/neosymbian-sdk}"
@@ -33,6 +37,14 @@ ssh zimaos "DOCKER_CONFIG=/DATA/AppData/docker-config docker run --rm -v $VOLUME
 mv "$SDK/epoc32.new/.epoc32/include" "$SDK/epoc32.new/include" && rmdir "$SDK/epoc32.new/.epoc32"
 mv "$SDK/epoc32.new/toolchain/symbian_gcc_prefix.h" "$SDK/epoc32.new/include/" && rmdir "$SDK/epoc32.new/toolchain"
 [ -f "$SDK/epoc32.new/include/stdapis/stdlib.h" ] || { echo "no stdapis in $VOLUME" >&2; exit 1; }
+mkdir -p "$SDK/epoc32.new/def"
+for d in src/oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore/libc/eabi/libcu.def \
+	src/oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore/libm/eabi/libmu.def \
+	src/oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore/libpthread/eabi/libpthreadu.def \
+	src/oss.FCL.sf.os.kernelhwsrv/kernel/eka/eabi/euseru.def; do
+	ssh zimaos "DOCKER_CONFIG=/DATA/AppData/docker-config docker run --rm -v $VOLUME:/b:ro alpine cat /b/$d" \
+		> "$SDK/epoc32.new/def/$(basename "$d")"
+done
 rm -rf "$SDK/epoc32" && mv "$SDK/epoc32.new" "$SDK/epoc32"
 
 # sdk-compat: include/ is searched first, c/ between libstdc++'s headers and P.I.P.S.'s (where <cmath>'s
@@ -55,15 +67,60 @@ ABI="-fshort-wchar -fno-short-enums -fno-exceptions -fno-strict-aliasing -fno-li
 INC_C="-nostdinc -isystem $SDK/compat -isystem $SDK/compat-c -isystem $SDK/epoc32/include/stdapis -isystem $SDK/arm-gnu/lib/gcc/arm-none-eabi/$VER/include -isystem $SDK/epoc32/include"
 INC_CXX="-nostdinc -nostdinc++ -isystem $SDK/compat -isystem $CXXINC -isystem $CXXINC/arm-none-eabi/$MULTI -isystem $CXXINC/backward -isystem $SDK/compat-c -isystem $SDK/epoc32/include/stdapis -isystem $SDK/arm-gnu/lib/gcc/arm-none-eabi/$VER/include -isystem $SDK/epoc32/include"
 EOF
+# the stubs: one weak assembler stub per export, so a real definition always wins (build_mmp.gcc_mangled: RVCT's
+# "FY" is GCC's "F")
+mkdir -p "$SDK/lib" "$SDK/stubs" && rm -f "$SDK/stubs/"*.s "$SDK/stubs/"*.o
+python3 - "$SDK" <<'PYEOF'
+import glob, os, re, sys
+sdk = sys.argv[1]
+names = {"__cxa_guard_acquire", "__cxa_guard_release", "__cxa_guard_abort", "__emutls_get_address"}
+for d in glob.glob(os.path.join(sdk, "epoc32/def/*.def")):
+    for line in open(d):
+        m = re.match(r"\s+(\S+)\s+@\s+\d+", line)
+        if m:
+            n = m.group(1)
+            names.add(n.replace("FY", "F") if n.startswith("_Z") else n)
+with open(os.path.join(sdk, "stubs/neostubs.s"), "w") as f:
+    f.write("\t.syntax unified\n\t.arm\n\t.text\n")
+    for n in sorted(names):
+        f.write('\t.weak "%s"\n\t.type "%s", %%function\n"%s":\n\tbx lr\n' % (n, n, n))
+print(len(names), "stubs")
+PYEOF
+"$SDK/arm-gnu/bin/arm-none-eabi-as" -march=armv7-a -o "$SDK/stubs/neostubs.o" "$SDK/stubs/neostubs.s"
+rm -f "$SDK/lib/libneostubs.a" && "$SDK/arm-gnu/bin/arm-none-eabi-ar" rcs "$SDK/lib/libneostubs.a" "$SDK/stubs/neostubs.o"
 for tool in gcc g++ cpp; do
 	cat > "$SDK/bin/armv7-symbian-$tool" <<EOF
 #!/bin/sh
 . "$SDK/bin/armv7-symbian-env"
 case $tool in g++) INC="\$INC_CXX" ;; *) INC="\$INC_C" ;; esac
-exec "$SDK/arm-gnu/bin/arm-none-eabi-$tool" \$ARCH \$ABI \$INC "\$@"
+# a link (no -c/-E/-S/-M): against the stubs, never newlib
+LINK="-nostdlib -L$SDK/lib -Wl,--start-group -lneostubs -lgcc -Wl,--end-group -Wl,--no-warn-mismatch -Wl,--defsym,_start=0"
+for a in "\$@"; do case "\$a" in -c|-E|-S|-M|-MM) LINK= ;; esac; done
+[ "$tool" = cpp ] && LINK=
+# no position-independent code: an E32 image takes absolute word relocations only (and nothing here is a DSO)
+for a do
+	shift
+	case "\$a" in -fPIC|-fpic|-fPIE|-fpie|-pie|-shared) continue ;; esac
+	set -- "\$@" "\$a"
+done
+# the target's ABI flags last: they win over any a caller adds (cc-rs's guesses for an unknown target)
+exec "$SDK/arm-gnu/bin/arm-none-eabi-$tool" \$INC "\$@" \$ABI \$ARCH \$LINK
 EOF
 	chmod +x "$SDK/bin/armv7-symbian-$tool"
 done
+# bindgen (libclang) over the same headers: one argument per line (clang keeps its own builtin headers)
+. "$SDK/bin/armv7-symbian-env"
+{
+	printf '%s\n' --target=armv7a-none-eabi -mfloat-abi=softfp -mfpu=neon -fshort-wchar -fno-short-enums -nostdlibinc
+	printf '%s\n' -include "$SDK/epoc32/include/symbian_gcc_prefix.h"
+	for d in -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__; do
+		printf '%s\n' "$d"
+	done
+	for d in "$SDK/compat" "$CXXINC" "$CXXINC/arm-none-eabi/$MULTI" "$CXXINC/backward" "$SDK/compat-c" \
+		"$SDK/epoc32/include/stdapis" "$SDK/epoc32/include"; do
+		printf '%s\n' -isystem "$d"
+	done
+} > "$SDK/bin/armv7-symbian-clang-args"
 for tool in ar ranlib nm objdump readelf strip objcopy; do
 	ln -sf "$SDK/arm-gnu/bin/arm-none-eabi-$tool" "$SDK/bin/armv7-symbian-$tool"
 done
