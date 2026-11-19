@@ -12,8 +12,15 @@ fn main() {
     // red-black tree, std::list's hook, std::unordered_map's rehash policy (only floor() from libm)
     let bin = symbian_cc::sdk_bin();
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    let lib = Command::new(bin.join("armv7-symbian-gcc"))
-        .arg("-print-file-name=libstdc++.a")
+    // the ARMv5TE softfp multilib's (asked of the plain compiler: the wrapper's ARMv7 flags would pick the Thumb
+    // ARMv7 one, whose MOVW/MOVT relocations an E32 image cannot take)
+    let lib = Command::new(bin.join("../arm-gnu/bin/arm-none-eabi-gcc"))
+        .args([
+            "-marm",
+            "-march=armv5te+fp",
+            "-mfloat-abi=softfp",
+            "-print-file-name=libstdc++.a",
+        ])
         .output()
         .unwrap();
     let lib = String::from_utf8(lib.stdout).unwrap().trim().to_string();

@@ -17,7 +17,30 @@ e32::main!(main);
 
 fn main() -> i32 {
     let engine = JSEngine::init().expect("JS engine");
+    println!("js engine ok");
     let mut rt = Runtime::new(engine.handle());
+    println!("js runtime ok");
+    // diagnostics (WB3 bring-up): the stack base the engine is given, and what InitSelfHostedCode left pending
+    unsafe extern "C" {
+        fn MozSymbianStackBase() -> *mut u8;
+    }
+    let here = 0u32;
+    println!(
+        "js stack base {:p}, sp ~{:p}",
+        unsafe { MozSymbianStackBase() },
+        &here as *const u32
+    );
+    if unsafe { JS_IsExceptionPending(rt.cx()) } {
+        rooted!(&in(rt.cx()) let mut exc = UndefinedValue());
+        unsafe { JS_GetPendingException(rt.cx(), exc.handle_mut()) };
+        let s = unsafe { mozjs::rust::ToString(rt.cx(), exc.handle()) };
+        let text = std::ptr::NonNull::new(s)
+            .map(|s| unsafe { mozjs::conversions::jsstr_to_string(rt.cx(), s) })
+            .unwrap_or_else(|| "(not a string)".into());
+        println!("js self-hosting left an exception: {text}");
+    } else {
+        println!("js no exception pending");
+    }
     let options = RealmOptions::default();
     rooted!(&in(rt.cx()) let global = unsafe {
         JS_NewGlobalObject(rt.cx(), &SIMPLE_GLOBAL_CLASS, ptr::null_mut(),
