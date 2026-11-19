@@ -117,7 +117,7 @@ fn run_script(
             return Err(format!("defining {n:?}"));
         }
     }
-    let mut eval = |cx: &mut JSContext, file: &CStr, src: &str| -> Result<Value, String> {
+    let eval = |cx: &mut JSContext, file: &CStr, src: &str| -> Result<Value, String> {
         rooted!(&in(cx) let mut rval = UndefinedValue());
         let opts = CompileOptionsWrapper::new(cx, file.to_owned(), 1);
         match evaluate_script(cx, global, src, rval.handle_mut(), opts) {
