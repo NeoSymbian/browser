@@ -24,7 +24,16 @@ fn main() {
         .output()
         .unwrap();
     let lib = String::from_utf8(lib.stdout).unwrap().trim().to_string();
-    let members = ["tree.o", "list.o", "hashtable_c++0x.o"];
+    // ... and libsupc++'s RTTI classes (the vtables of class_type_info and si_class_type_info), for C++ built with
+    // RTTI (Servo's C and C++ dependencies)
+    let members = [
+        "tree.o",
+        "list.o",
+        "hashtable_c++0x.o",
+        "class_type_info.o",
+        "si_class_type_info.o",
+        "tinfo.o",
+    ];
     let ok = Command::new(bin.join("armv7-symbian-ar"))
         .arg("x")
         .arg(&lib)

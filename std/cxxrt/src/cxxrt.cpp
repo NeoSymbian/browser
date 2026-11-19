@@ -4,6 +4,7 @@
 // and thread_local uses emulated TLS), and libstdc++'s std::__throw_* helpers as fatal errors.
 #include <chrono>
 #include <errno.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -197,6 +198,19 @@ int pthread_rwlock_tryrdlock(pthread_rwlock_t* l) { return pthread_mutex_trylock
 int pthread_rwlock_trywrlock(pthread_rwlock_t* l) { return pthread_mutex_trylock(&l->m); }
 int pthread_rwlock_unlock(pthread_rwlock_t* l) { return pthread_mutex_unlock(&l->m); }
 int fchown(int, uid_t, gid_t) { return 0; }
+// no libdl provider in the ROM: the only users (surfman's wayland/x11 back ends, through libloading) never run with
+// SWGL. Opening anything fails.
+void* dlopen(const char*, int) { return nullptr; }
+void* dlsym(void*, const char*) { return nullptr; }
+int dlclose(void*) { return -1; }
+char* dlerror() { return const_cast<char*>("no dynamic loading on NeoSymbian"); }
+// P.I.P.S.'s libm exports no log2 (its header's is inline, never a symbol), which Rust's f64::log2 calls
+double cxxrt_log2(double x) __asm__("log2");
+double cxxrt_log2(double x) { return log(x) * 1.4426950408889634; }
+float cxxrt_log2f(float x) __asm__("log2f");
+float cxxrt_log2f(float x) { return float(log(double(x)) * 1.4426950408889634); }
+// no socketpair in P.I.P.S. (tokio's signal driver asks for one; nothing here delivers signals)
+int socketpair(int, int, int, int*) { errno = EOPNOTSUPP; return -1; }
 int tcgetattr(int, struct termios*) { errno = ENOTTY; return -1; }
 int tcsetattr(int, int, const struct termios*) { errno = ENOTTY; return -1; }
 }

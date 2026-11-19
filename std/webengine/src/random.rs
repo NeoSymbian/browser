@@ -34,3 +34,8 @@ fn getrandom02(dest: &mut [u8]) -> Result<(), getrandom02::Error> {
 }
 getrandom02::register_custom_getrandom!(getrandom02);
 
+
+/// aws-lc probes the ARM CPU's features only on Linux and the BSDs; here it starts with none (its portable C code,
+/// no NEON assembly). shortcut: no NEON crypto, upgrade by setting OPENSSL_armcap_P from the HWCAP we know (WB4d).
+#[unsafe(no_mangle)]
+extern "C" fn aws_lc_0_46_0_OPENSSL_cpuid_setup() {}
