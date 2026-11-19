@@ -185,6 +185,15 @@ public:
 	static unsigned long Random();
 };
 
+// euser's User::AllocLen, declared the same way: P.I.P.S.'s malloc allocates from the thread's RHeap
+class User {
+public:
+	static int AllocLen(const void* aCell);
+};
+
+// malloc_usable_size (glibc's), which P.I.P.S. lacks: Servo's allocator and SpiderMonkey use it for memory reports
+extern "C" size_t malloc_usable_size(void* p) { return p ? size_t(User::AllocLen(p)) : 0; }
+
 __attribute__((constructor(101))) static void SeedStackGuard() {
 	__stack_chk_guard = Math::Random() | 0xffu;  // never 0 in the low byte: a C string cannot copy over it
 }

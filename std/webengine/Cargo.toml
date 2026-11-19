@@ -1,0 +1,32 @@
+[package]
+name = "webengine"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+# NEOWEBE.EXE (docs browser.md WB4): Servo 0.8.0 on NeoSymbian, the browser's engine process. It grows from
+# crates/neoweb-host (WB0's Linux embedder): the SWGL rendering context and the Servo loop.
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+e32.workspace = true
+cxxrt = { path = "../cxxrt" }
+# the NeoSymbian/servo fork (branch neosymbian, from v0.8.0): no default features (no JIT, multiprocess, devtools)
+servo = { path = "../../../../servo-fork/components/servo", default-features = false, features = ["bundled", "subtlecrypto"] }
+# one process, no IPC sockets: ipc-channel's in-process channels (features unify across the graph)
+ipc-channel = { version = "0.23", features = ["force-inprocess"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "logging", "std", "tls12"] }
+url = "2.5"
+euclid = "0.22"
+dpi = "0.1"
+image = { version = "0.25", default-features = false, features = ["png"] }
+# WebRender's software GL (the versions Servo 0.8 locks: gleam 0.15.1, glow 0.17, surfman 0.14)
+swgl = "0.70"
+gleam = "0.15"
+glow = "0.17"
+surfman = { version = "0.14", default-features = false }
+# getrandom for every version in the graph, over the kernel's secure RNG (src/random.rs)
+getrandom02 = { package = "getrandom", version = "0.2", features = ["custom"] }
+getrandom03 = { package = "getrandom", version = "0.3" }

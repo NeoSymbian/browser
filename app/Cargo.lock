@@ -2568,6 +2568,10 @@ name = "neoweb-core"
 version = "0.1.0"
 
 [[package]]
+name = "neoweb-proto"
+version = "0.1.0"
+
+[[package]]
 name = "neoweb-ui"
 version = "0.1.0"
 dependencies = [

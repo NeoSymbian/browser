@@ -10,3 +10,15 @@ sym = "build --release --target targets/armv7a-symbian-eabi.json -Zjson-target-s
 MOZJS_FROM_SOURCE = "1"
 # build scripts that call rustc for the target by name (autocfg) find its JSON here
 RUST_TARGET_PATH = { value = "targets", relative = true }
+# C and C++ dependencies (sqlite, zlib, zstd, aws-lc, harfbuzz, freetype, swgl...) build with the SDK's wrappers
+# (tools/symbian-sdk.sh): put ~/.local/share/neosymbian-sdk/bin on PATH
+CC_armv7a_symbian_eabi = "armv7-symbian-gcc"
+CXX_armv7a_symbian_eabi = "armv7-symbian-g++"
+AR_armv7a_symbian_eabi = "armv7-symbian-ar"
+LIBZ_SYS_STATIC = "1"
+# sqlite: no mmap (P.I.P.S.'s is unusable), no extension loading
+LIBSQLITE3_FLAGS = "-DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_OMIT_LOAD_EXTENSION"
+
+[target.armv7a-symbian-eabi]
+# getrandom 0.3/0.4: the kernel's secure RNG through webengine's __getrandom_v03_custom (webengine/src/random.rs)
+rustflags = ["--cfg", 'getrandom_backend="custom"']
