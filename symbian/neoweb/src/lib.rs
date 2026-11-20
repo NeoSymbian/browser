@@ -75,6 +75,8 @@ struct Model {
     control: Control,
     query: Option<u32>,
     picking: Option<u32>,
+    /// sites the user said Never to (Save password)
+    never_save: Vec<String>,
     /// the page size last sent to the engine
     sent: Option<Command>,
 }
@@ -198,6 +200,12 @@ impl Model {
                     });
                 }
             }
+            "login" if i == 0 => {
+                let site = Header::of(&self.live.url).domain;
+                if !self.never_save.contains(&site) {
+                    self.never_save.push(site);
+                }
+            }
             "upload-cancel" => {
                 if let Control::Upload { id, .. } = core::mem::take(&mut self.control) {
                     return Some(Command::Files {
@@ -278,6 +286,14 @@ impl Model {
                 // over the shell's 2048 bytes the copy is refused, never cut (browser-ui.md)
                 if !app.set_clipboard(&text) {
                     let _ = app.note("Too long to copy", "");
+                }
+            }
+            Event::Login { user } => {
+                // B11: no secure store yet, so the sheet only says it; Never is remembered for this run (WB5d keeps it)
+                if !self.never_save.contains(&site) {
+                    s.set_sheet_site(site.as_str().into());
+                    s.set_sheet_text(user.as_str().into());
+                    ui.invoke_show_sheet(4);
                 }
             }
             Event::ClipboardGet { id } => {
@@ -477,6 +493,46 @@ fn copy_for_engine(f: &e32::fs::SharedFile) -> Result<String, i32> {
     Ok(path)
 }
 
+/// Frame timing on the debug log every 2 s while frames come (WB5b): the copy into Slint's image, and the redraw
+/// with the shell's DAMAGE (the presentation fence).
+#[derive(Default)]
+struct FrameStats {
+    since: Option<u64>,
+    frames: u32,
+    copy_us: u64,
+    draw_us: u64,
+}
+
+impl FrameStats {
+    fn add(&mut self, copy_us: u32, draw_us: u32) {
+        let now = e32::time::millis();
+        let since = *self.since.get_or_insert(now);
+        self.frames += 1;
+        self.copy_us += u64::from(copy_us);
+        self.draw_us += u64::from(draw_us);
+        if now - since >= 2000 {
+            let n = u64::from(self.frames.max(1));
+            dprintln!(
+                "neoweb: {} frames/{} ms: copy avg {} ms, draw avg {} ms",
+                self.frames,
+                now - since,
+                self.copy_us / n / 1000,
+                self.draw_us / n / 1000
+            );
+            *self = Self::default();
+        }
+    }
+}
+
+/// Microseconds from `from` (a fast counter value) to now.
+fn us_since(from: u32) -> u32 {
+    e32::time::counter_us(
+        from,
+        e32::time::fast_counter(),
+        e32::time::fast_counter_hz(),
+    )
+}
+
 fn model<T: Clone + 'static>(v: Vec<T>) -> ModelRc<T> {
     ModelRc::from(Rc::new(VecModel::from(v)))
 }
@@ -514,6 +570,9 @@ fn run() -> Result<(), i32> {
 
     rt::block_on(async {
         let mut connection = Connection::start();
+        let mut stats = FrameStats::default();
+        // a frame was installed this turn: its copy time (µs), for the timing after the redraw
+        let mut framed: Option<u32> = None;
         let mut next = pin!(shell_event(&app));
         loop {
             // Both NEXT_EVENT requests stay pinned when a timer or the other server wakes us.
@@ -589,8 +648,10 @@ fn run() -> Result<(), i32> {
                             ..
                         }) => {
                             if !m.live.url.is_empty() {
+                                let t = e32::time::fast_counter();
                                 let image = connection.frame(buffer, width, height)?;
                                 ui.global::<BrowserState>().set_frame(image);
+                                framed = Some(us_since(t));
                             }
                             connection.send(Command::FrameShown { seq })
                         }
@@ -606,7 +667,8 @@ fn run() -> Result<(), i32> {
                             | Event::Select { .. }
                             | Event::FilePick { .. }
                             | Event::ClipboardSet(_)
-                            | Event::ClipboardGet { .. }),
+                            | Event::ClipboardGet { .. }
+                            | Event::Login { .. }),
                         ) => match m.control(&app, &ui, event) {
                             Some(answer) => connection.send(answer),
                             None => Ok(()),
@@ -647,7 +709,11 @@ fn run() -> Result<(), i32> {
             if m.sent.as_ref() != Some(&size) && connection.send(size.clone()).is_ok() {
                 m.sent = Some(size);
             }
+            let t = e32::time::fast_counter();
             app.redraw()?;
+            if let Some(copy) = framed.take() {
+                stats.add(copy, us_since(t));
+            }
         }
     })
 }

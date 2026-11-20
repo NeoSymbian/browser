@@ -1,0 +1,61 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- WB5a's gate page: fields of each keyboard, a textarea, contenteditable, selects, a file input, the script
+     dialogs and "Leave this page?". What happened shows in #log, so a screenshot tells the result. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Forms</title>
+<style>
+body { font: 16px sans-serif; margin: 12px; }
+label { display: block; margin: 10px 0 4px; font-weight: bold; }
+input, textarea, select { font: 16px sans-serif; width: 100%; box-sizing: border-box; padding: 6px; }
+button { font: 16px sans-serif; margin: 4px 4px 0 0; padding: 8px 10px; }
+#edit { border: 1px solid #888; min-height: 2em; padding: 6px; }
+#log { margin-top: 12px; padding: 8px; background: #eef; white-space: pre-wrap; font: 14px monospace; }
+</style>
+</head>
+<body>
+<form id="f" action="#sent">
+<label for="name">Name</label><input id="name" name="name" autocomplete="off">
+<label for="pw">Password</label><input id="pw" name="pw" type="password">
+<label for="age">Age (number)</label><input id="age" name="age" type="number">
+<label for="tel">Phone (tel)</label><input id="tel" name="tel" type="tel">
+<label for="note">Note (textarea)</label><textarea id="note" name="note" rows="3"></textarea>
+<label>Editable</label><div id="edit" contenteditable="true"></div>
+<label for="size">Size (select)</label>
+<select id="size" name="size">
+<option>Any size</option>
+<optgroup label="Phones"><option>Pixel 3a XL</option><option disabled>Nokia N8</option></optgroup>
+</select>
+<label for="tags">Tags (multiple)</label>
+<select id="tags" name="tags" multiple size="1"><option>kernel</option><option>ui</option><option>web</option></select>
+<label for="up">File</label><input id="up" name="up" type="file">
+<p><button type="submit">Submit</button></p>
+</form>
+<p>
+<button onclick="log('alert done', alert('Hello from forms.html'))">alert</button>
+<button onclick="log('confirm', confirm('Delete this draft?'))">confirm</button>
+<button onclick="log('prompt', prompt('Name for the new folder:', 'Browser'))">prompt</button>
+<button onclick="guard = !guard; log('leave guard', guard)">guard leave</button>
+<a href="hello.html">next page</a>
+</p>
+<div id="log"></div>
+<script>
+let guard = false;
+function log(what, v) { document.getElementById('log').textContent += what + ': ' + JSON.stringify(v) + '\n'; }
+addEventListener('beforeunload', e => { if (guard) { e.preventDefault(); e.returnValue = ''; } });
+document.getElementById('f').addEventListener('submit', e => {
+  e.preventDefault();
+  const d = new FormData(e.target), out = {};
+  for (const [k, v] of d) out[k] = typeof v === 'string' ? v : v.name + ' ' + v.size + ' B';
+  out.edit = document.getElementById('edit').textContent;
+  log('submit', out);
+});
+for (const id of ['size', 'tags', 'up'])
+  document.getElementById(id).addEventListener('change', e =>
+    log(id, id === 'up' ? [...e.target.files].map(f => f.name + ' ' + f.size) : [...e.target.selectedOptions].map(o => o.text)));
+</script>
+</body>
+</html>

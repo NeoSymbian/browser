@@ -11,6 +11,7 @@ Resource\NeoWeb\Fonts\DejaVuSerif-BoldItalic.ttf=neoweb/fonts/DejaVuSerif-BoldIt
 Resource\NeoWeb\Fonts\DejaVuSerif-Italic.ttf=neoweb/fonts/DejaVuSerif-Italic.ttf
 Resource\NeoWeb\Fonts\DejaVuSerif.ttf=neoweb/fonts/DejaVuSerif.ttf
 Resource\NeoWeb\Pages\font.html=neoweb/pages/font.html
+Resource\NeoWeb\Pages\forms.html=neoweb/pages/forms.html
 Resource\NeoWeb\Pages\gradient.png=neoweb/pages/gradient.png
 Resource\NeoWeb\Pages\images.html=neoweb/pages/images.html
 Resource\NeoWeb\Pages\index.html=neoweb/pages/index.html

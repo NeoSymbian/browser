@@ -208,6 +208,10 @@ pub enum Event {
     ClipboardGet {
         id: u32,
     },
+    /// A form with a password was sent: NEOWEB offers Save password (br2-login-save) for the page's site.
+    Login {
+        user: String,
+    },
 }
 
 /// The start of the frame chunk.
@@ -510,6 +514,7 @@ impl Event {
             } => w.u8(9).u32(*id).u8(*multiple as u8).str(accept, 1024),
             Event::ClipboardSet(t) => w.u8(10).str(t, EVENT_STR_MAX),
             Event::ClipboardGet { id } => w.u8(11).u32(*id),
+            Event::Login { user } => w.u8(12).str(user, 256),
         }
         .0
     }
@@ -577,6 +582,7 @@ impl Event {
             },
             10 => Event::ClipboardSet(r.str()?),
             11 => Event::ClipboardGet { id: r.u32()? },
+            12 => Event::Login { user: r.str()? },
             _ => return Err(BadMessage),
         };
         r.end(e)
@@ -700,6 +706,9 @@ mod tests {
             },
             Event::ClipboardSet("text".to_string()),
             Event::ClipboardGet { id: 9 },
+            Event::Login {
+                user: "ava@example.org".to_string(),
+            },
         ];
         for e in all {
             assert_eq!(Event::decode(&e.encode()), Ok(e));

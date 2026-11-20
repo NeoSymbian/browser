@@ -27,12 +27,12 @@ use neoweb_proto::{
     Command, DialogKind, Event, FrameHeader, Load, Rect, SelectItem, TouchKind, func,
 };
 use servo::{
-    AllowOrDenyRequest, ClipboardDelegate, Code, DevicePoint, EmbedderControl, EmbedderControlId,
+    AllowOrDenyRequest, ClipboardDelegate, Code, ConsoleLogLevel, DevicePoint, EmbedderControl, EmbedderControlId,
     EventLoopWaker, FilePicker, ImeEvent, InputEvent, InputMethodType, Key, KeyState,
     KeyboardEvent, LoadStatus, Location, Modifiers, NamedKey, RenderingContext, SelectElement,
     SelectElementOption, SelectElementOptionOrOptgroup, SimpleDialog, StringRequest, TouchEvent, TouchEventType, TouchId,
-    TouchPointerType, WebView, WebViewBuilder, WebViewDelegate, WebViewPoint, WheelDelta,
-    WheelEvent, WheelMode,
+    TouchPointerType, UserContentManager, UserScript, WebView, WebViewBuilder, WebViewDelegate,
+    WebViewPoint, WheelDelta, WheelEvent, WheelMode,
 };
 
 use crate::Waker;
@@ -198,6 +198,17 @@ impl Controls {
     }
 }
 
+/// The start of the console line [`LOGIN_SCRIPT`] writes.
+const LOGIN_MARK: &str = "neoweb:login ";
+
+/// Run in every page: a form sent with a password reports its user name, for Save password (br2-login-save, B11).
+const LOGIN_SCRIPT: &str = r#"addEventListener('submit', e => {
+  const f = e.target, pw = f.querySelector && f.querySelector('input[type=password]');
+  if (!pw || !pw.value || e.defaultPrevented) return;
+  const u = [...f.querySelectorAll('input')].find(i => i !== pw && /^(text|email|tel|)$/.test(i.type) && i.value);
+  console.log('neoweb:login ' + (u ? u.value : ''));
+}, true);"#;
+
 /// The neoui keyboard (`KEYBOARD` mode) for a field: number and phone pads, else text.
 fn keyboard_mode(t: InputMethodType) -> u8 {
     match t {
@@ -333,6 +344,13 @@ impl WebViewDelegate for Delegate {
             c.ime = None;
             drop(c);
             self.post(Event::Keyboard { mode: 0 });
+        }
+    }
+
+    fn show_console_message(&self, _: WebView, _: ConsoleLogLevel, message: String) {
+        // LOGIN_SCRIPT's report; a page can fake it, but all it gets is our own "Save password?" sheet
+        if let Some(user) = message.strip_prefix(LOGIN_MARK) {
+            self.post(Event::Login { user: user.into() });
         }
     }
 
@@ -594,6 +612,8 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
         frame_ready: Default::default(),
         controls: Default::default(),
     });
+    let user_content = Rc::new(UserContentManager::new(&servo));
+    user_content.add_script(Rc::new(UserScript::new(LOGIN_SCRIPT.into(), None)));
     // After a resize while a field has the keyboard, the field is scrolled into view once the page has the new size.
     let mut reveal_at: Option<std::time::Instant> = None;
     // The page is made at the first Load, with its URL and the client's size: a load sent to a WebView whose
@@ -643,6 +663,7 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                                 .hidpi_scale_factor(Scale::new(dpr))
                                 .delegate(delegate.clone())
                                 .clipboard_delegate(delegate.clone())
+                                .user_content_manager(user_content.clone())
                                 .build(),
                         );
                     }
