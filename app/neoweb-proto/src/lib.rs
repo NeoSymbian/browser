@@ -18,6 +18,13 @@
 //!   [`Command::Files`]. The page's clipboard is the shell's: [`Event::ClipboardSet`], and [`Event::ClipboardGet`]
 //!   answered with [`Command::Clipboard`].
 //!
+//! - **Tabs (1.2, WB5c):** each opened page is a tab with NEOWEB's id: [`Command::Open`] makes (or reloads) its page
+//!   and shows it, [`Command::Activate`] shows another, [`Command::Close`] frees one (closed or evicted). Load, Url,
+//!   Title and History are the shown tab's (sent again on activation); the others report [`Event::TabInfo`]. A
+//!   page's own new window comes as [`Event::Created`] with an engine id (>= [`ENGINE_TABS`]).
+//! - **Long-press, selection, find (1.2):** [`Command::Press`] → [`Event::Pressed`] (a link, an image, or a word
+//!   selected); [`Command::Select`] and [`Command::Find`] → [`Event::Selection`] / [`Event::Found`].
+//!
 //! Every message is a tag byte and little-endian fields; strings are a `u32` length and UTF-8; lists a `u32` count.
 
 #![no_std]
@@ -30,7 +37,9 @@ use alloc::vec::Vec;
 /// The engine's server name.
 pub const SERVER_NAME: &str = "NeoWebEngine";
 /// The protocol version (major, minor, build), checked at connect.
-pub const VERSION: (u8, u8, u16) = (1, 1, 0);
+pub const VERSION: (u8, u8, u16) = (1, 2, 0);
+/// Tab ids from here up are the engine's (a page's new window); below, NEOWEB's.
+pub const ENGINE_TABS: u32 = 0x8000_0000;
 /// Room for one encoded event (URLs and titles are cut to fit).
 pub const EVENT_MAX: usize = 4096;
 
@@ -124,6 +133,59 @@ pub enum Command {
         id: u32,
         text: String,
     },
+    /// Show tab `tab` with `url` loaded (its page is made if it has none: a new or evicted tab).
+    Open {
+        tab: u32,
+        url: String,
+    },
+    /// Show tab `tab` (it has a page).
+    Activate {
+        tab: u32,
+    },
+    /// Free tab `tab`'s page (closed, or evicted to save memory).
+    Close {
+        tab: u32,
+    },
+    /// A long-press at (x, y) page pixels: answered with [`Event::Pressed`].
+    Press {
+        x: i32,
+        y: i32,
+    },
+    /// The text selection: [`SelectOp`], the point for a handle drag.
+    Select {
+        op: SelectOp,
+        x: i32,
+        y: i32,
+    },
+    /// Find `text` from the top (`dir` 0), the next (1) or previous (-1) match; empty `text` stops.
+    Find {
+        text: String,
+        dir: i32,
+    },
+    /// The desktop site (a desktop user agent) for the pages loaded from now.
+    DesktopSite(bool),
+}
+
+/// What [`Command::Select`] does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SelectOp {
+    /// Copy the selection (to the clipboard: [`Event::ClipboardSet`]).
+    Copy = 0,
+    SelectAll = 1,
+    Clear = 2,
+    /// Move the selection's start, or end, to the point.
+    DragStart = 3,
+    DragEnd = 4,
+}
+
+/// What a long-press hit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PressKind {
+    Nothing = 0,
+    Link = 1,
+    Image = 2,
+    /// A word is selected now ([`Event::Selection`] follows).
+    Text = 3,
 }
 
 /// What a script dialog is.
@@ -211,6 +273,34 @@ pub enum Event {
     /// A form with a password was sent: NEOWEB offers Save password (br2-login-save) for the page's site.
     Login {
         user: String,
+    },
+    /// A tab that isn't shown changed its address or title.
+    TabInfo {
+        tab: u32,
+        url: String,
+        title: String,
+    },
+    /// A page opened a new window (`target=_blank`, `window.open`): tab `tab` (an engine id), shown now.
+    Created {
+        tab: u32,
+        opener: u32,
+    },
+    /// What a long-press hit; `y` is the bottom of the link or image (page px) for the menu.
+    Pressed {
+        kind: PressKind,
+        title: String,
+        url: String,
+        y: i32,
+    },
+    /// The selection's ends (page px): the start's left and top, the end's right and top, the line height; empty
+    /// = nothing selected.
+    Selection {
+        ends: Vec<i32>,
+    },
+    /// Find's current match (1-based, 0 = none) of `count`.
+    Found {
+        index: u32,
+        count: u32,
     },
 }
 
@@ -373,6 +463,13 @@ impl Command {
                 w
             }
             Command::Clipboard { id, text } => w.u8(15).u32(*id).str(text, COMMAND_STR_MAX),
+            Command::Open { tab, url } => w.u8(16).u32(*tab).str(url, COMMAND_STR_MAX),
+            Command::Activate { tab } => w.u8(17).u32(*tab),
+            Command::Close { tab } => w.u8(18).u32(*tab),
+            Command::Press { x, y } => w.u8(19).i32(*x).i32(*y),
+            Command::Select { op, x, y } => w.u8(20).u8(*op as u8).i32(*x).i32(*y),
+            Command::Find { text, dir } => w.u8(21).str(text, 1024).i32(*dir),
+            Command::DesktopSite(on) => w.u8(22).u8(*on as u8),
         }
         .0
     }
@@ -433,6 +530,33 @@ impl Command {
                 id: r.u32()?,
                 text: r.str()?,
             },
+            16 => Command::Open {
+                tab: r.u32()?,
+                url: r.str()?,
+            },
+            17 => Command::Activate { tab: r.u32()? },
+            18 => Command::Close { tab: r.u32()? },
+            19 => Command::Press {
+                x: r.i32()?,
+                y: r.i32()?,
+            },
+            20 => Command::Select {
+                op: match r.u8()? {
+                    0 => SelectOp::Copy,
+                    1 => SelectOp::SelectAll,
+                    2 => SelectOp::Clear,
+                    3 => SelectOp::DragStart,
+                    4 => SelectOp::DragEnd,
+                    _ => return Err(BadMessage),
+                },
+                x: r.i32()?,
+                y: r.i32()?,
+            },
+            21 => Command::Find {
+                text: r.str()?,
+                dir: r.i32()?,
+            },
+            22 => Command::DesktopSite(r.bool()?),
             _ => return Err(BadMessage),
         };
         r.end(c)
@@ -515,6 +639,31 @@ impl Event {
             Event::ClipboardSet(t) => w.u8(10).str(t, EVENT_STR_MAX),
             Event::ClipboardGet { id } => w.u8(11).u32(*id),
             Event::Login { user } => w.u8(12).str(user, 256),
+            Event::TabInfo { tab, url, title } => w
+                .u8(13)
+                .u32(*tab)
+                .str(url, EVENT_STR_MAX / 2)
+                .str(title, 512),
+            Event::Created { tab, opener } => w.u8(14).u32(*tab).u32(*opener),
+            Event::Pressed {
+                kind,
+                title,
+                url,
+                y,
+            } => w
+                .u8(15)
+                .u8(*kind as u8)
+                .str(title, 256)
+                .str(url, EVENT_STR_MAX / 2)
+                .i32(*y),
+            Event::Selection { ends } => {
+                let mut w = w.u8(16).u32(ends.len().min(8) as u32);
+                for e in ends.iter().take(8) {
+                    w = w.i32(*e);
+                }
+                w
+            }
+            Event::Found { index, count } => w.u8(17).u32(*index).u32(*count),
         }
         .0
     }
@@ -583,6 +732,34 @@ impl Event {
             10 => Event::ClipboardSet(r.str()?),
             11 => Event::ClipboardGet { id: r.u32()? },
             12 => Event::Login { user: r.str()? },
+            13 => Event::TabInfo {
+                tab: r.u32()?,
+                url: r.str()?,
+                title: r.str()?,
+            },
+            14 => Event::Created {
+                tab: r.u32()?,
+                opener: r.u32()?,
+            },
+            15 => Event::Pressed {
+                kind: match r.u8()? {
+                    0 => PressKind::Nothing,
+                    1 => PressKind::Link,
+                    2 => PressKind::Image,
+                    3 => PressKind::Text,
+                    _ => return Err(BadMessage),
+                },
+                title: r.str()?,
+                url: r.str()?,
+                y: r.i32()?,
+            },
+            16 => Event::Selection {
+                ends: r.list(|r| r.i32())?,
+            },
+            17 => Event::Found {
+                index: r.u32()?,
+                count: r.u32()?,
+            },
             _ => return Err(BadMessage),
         };
         r.end(e)
@@ -645,6 +822,23 @@ mod tests {
                 id: 1,
                 text: "copied".to_string(),
             },
+            Command::Open {
+                tab: 3,
+                url: "https://github.com/NeoSymbian".to_string(),
+            },
+            Command::Activate { tab: 2 },
+            Command::Close { tab: 1 },
+            Command::Press { x: 500, y: 900 },
+            Command::Select {
+                op: SelectOp::DragEnd,
+                x: 10,
+                y: -4,
+            },
+            Command::Find {
+                text: "Symbian".to_string(),
+                dir: -1,
+            },
+            Command::DesktopSite(true),
         ];
         for c in all {
             assert_eq!(Command::decode(&c.encode()), Ok(c));
@@ -709,6 +903,26 @@ mod tests {
             Event::Login {
                 user: "ava@example.org".to_string(),
             },
+            Event::TabInfo {
+                tab: 2,
+                url: "https://slint.dev/docs".to_string(),
+                title: "Slint docs".to_string(),
+            },
+            Event::Created {
+                tab: ENGINE_TABS + 1,
+                opener: 2,
+            },
+            Event::Pressed {
+                kind: PressKind::Link,
+                title: "Eclipse Public License".to_string(),
+                url: "https://en.wikipedia.org/wiki/Eclipse_Public_License".to_string(),
+                y: 960,
+            },
+            Event::Selection {
+                ends: vec![30, 600, 900, 660, 51],
+            },
+            Event::Selection { ends: vec![] },
+            Event::Found { index: 2, count: 7 },
         ];
         for e in all {
             assert_eq!(Event::decode(&e.encode()), Ok(e));

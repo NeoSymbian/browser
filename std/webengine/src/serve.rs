@@ -24,10 +24,12 @@ use e32::server::{Message, Server, Service};
 use e32::sys::TVersion;
 use euclid::Scale;
 use neoweb_proto::{
-    Command, DialogKind, Event, FrameHeader, Load, Rect, SelectItem, TouchKind, func,
+    Command, DialogKind, Event, FrameHeader, Load, PressKind, Rect, SelectItem, SelectOp, TouchKind,
+    func,
 };
 use servo::{
-    AllowOrDenyRequest, ClipboardDelegate, Code, ConsoleLogLevel, DevicePoint, EmbedderControl, EmbedderControlId,
+    AllowOrDenyRequest, ClipboardDelegate, Code, ConsoleLogLevel, CreateNewWebViewRequest, JSValue,
+    PrefValue, DevicePoint, EmbedderControl, EmbedderControlId,
     EventLoopWaker, FilePicker, ImeEvent, InputEvent, InputMethodType, Key, KeyState,
     KeyboardEvent, LoadStatus, Location, Modifiers, NamedKey, RenderingContext, SelectElement,
     SelectElementOption, SelectElementOptionOrOptgroup, SimpleDialog, StringRequest, TouchEvent, TouchEventType, TouchId,
@@ -36,6 +38,7 @@ use servo::{
 };
 
 use crate::Waker;
+use crate::tabs::Tabs;
 
 /// The largest page area a frame buffer holds (the Pixel 3a XL's 1080 px width, its full height).
 pub const MAX_W: u32 = 1080;
@@ -156,6 +159,10 @@ struct Delegate {
     shared: SharedRef,
     frame_ready: std::cell::Cell<bool>,
     controls: RefCell<Controls>,
+    tabs: RefCell<Tabs>,
+    /// for a page's new windows
+    ctx: Rc<crate::swgl::SwglRenderingContext>,
+    dpr: std::cell::Cell<f32>,
 }
 
 impl Delegate {
@@ -218,31 +225,74 @@ fn keyboard_mode(t: InputMethodType) -> u8 {
     }
 }
 
+impl Delegate {
+    /// A page event of `view`: the shown tab's as is, another tab's as TabInfo (WB5c).
+    fn page(&self, view: &WebView, e: Event) {
+        let routed = self.tabs.borrow_mut().route(view, e);
+        if let Some(e) = routed {
+            self.post(e);
+        }
+    }
+
+    fn shown(&self, view: &WebView) -> bool {
+        let tabs = self.tabs.borrow();
+        tabs.shown_view().is_some_and(|v| v.id() == view.id())
+    }
+}
+
 impl WebViewDelegate for Delegate {
-    fn notify_load_status_changed(&self, _: WebView, status: LoadStatus) {
-        self.post(Event::Load(match status {
+    fn notify_load_status_changed(&self, view: WebView, status: LoadStatus) {
+        let load = match status {
             LoadStatus::Started => Load::Started,
             LoadStatus::HeadParsed => Load::HeadParsed,
             LoadStatus::Complete | LoadStatus::Stopped => Load::Complete,
-        }));
+        };
+        self.page(&view, Event::Load(load));
     }
 
-    fn notify_url_changed(&self, _: WebView, url: url::Url) {
-        self.post(Event::Url(url.into()));
+    fn notify_url_changed(&self, view: WebView, url: url::Url) {
+        self.page(&view, Event::Url(url.into()));
     }
 
-    fn notify_page_title_changed(&self, _: WebView, title: Option<String>) {
-        self.post(Event::Title(title.unwrap_or_default()));
+    fn notify_page_title_changed(&self, view: WebView, title: Option<String>) {
+        self.page(&view, Event::Title(title.unwrap_or_default()));
     }
 
-    fn notify_history_changed(&self, _: WebView, entries: Vec<url::Url>, current: usize) {
-        self.post(Event::History {
+    fn notify_history_changed(&self, view: WebView, entries: Vec<url::Url>, current: usize) {
+        let e = Event::History {
             back: current > 0,
             forward: current + 1 < entries.len(),
-        });
+        };
+        self.page(&view, e);
     }
 
-    fn notify_new_frame_ready(&self, _: WebView) {
+    fn notify_new_frame_ready(&self, view: WebView) {
+        if self.shown(&view) {
+            self.frame_ready.set(true);
+        }
+    }
+
+    /// A page's new window (`target=_blank`, `window.open`): a tab of its own, shown at once (WB5c).
+    fn request_create_new(&self, parent: WebView, request: CreateNewWebViewRequest) {
+        let mut b = request
+            .builder(self.ctx.clone())
+            .hidpi_scale_factor(Scale::new(self.dpr.get()))
+            .delegate(parent.delegate())
+            .clipboard_delegate(parent.clipboard_delegate());
+        if let Some(ucm) = parent.user_content_manager() {
+            b = b.user_content_manager(ucm);
+        }
+        let view = b.build();
+        let mut tabs = self.tabs.borrow_mut();
+        let opener = tabs.of(&parent).map_or(0, |t| t.id);
+        let tab = tabs.engine_id();
+        tabs.add(tab, view);
+        let events = tabs.show(tab);
+        drop(tabs);
+        self.post(Event::Created { tab, opener });
+        for e in events {
+            self.post(e);
+        }
         self.frame_ready.set(true);
     }
 
@@ -611,15 +661,16 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
         shared: shared.clone(),
         frame_ready: Default::default(),
         controls: Default::default(),
+        tabs: Default::default(),
+        ctx: ctx.clone(),
+        dpr: std::cell::Cell::new(2.75),
     });
     let user_content = Rc::new(UserContentManager::new(&servo));
     user_content.add_script(Rc::new(UserScript::new(LOGIN_SCRIPT.into(), None)));
+    user_content.add_script(Rc::new(UserScript::new(HELPER_SCRIPT.into(), None)));
+    let mobile_agent = servo::pref!(user_agent);
     // After a resize while a field has the keyboard, the field is scrolled into view once the page has the new size.
     let mut reveal_at: Option<std::time::Instant> = None;
-    // The page is made at the first Load, with its URL and the client's size: a load sent to a WebView whose
-    // browsing context the constellation hasn't made yet is dropped ("LoadUrl for unknown browsing context").
-    let mut webview: Option<WebView> = None;
-    let mut dpr = 2.75f32;
     let mut buffers = Buffers::default();
     let mut pending = false;
     let mut stats = Stats::default();
@@ -636,6 +687,31 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
     if check_heap {
         println!("neowebe: heap checks on");
     }
+    // Show tab `tab`, made with `url` if it has no page (a WebView is made with its URL: a load sent before the
+    // constellation has made its browsing context is dropped).
+    let open = |tab: u32, url: Option<url::Url>, size: PhysicalSize<u32>| {
+        let exists = delegate.tabs.borrow().get(tab).is_some();
+        match (exists, url) {
+            (true, Some(u)) => delegate.tabs.borrow().get(tab).unwrap().view.load(u),
+            (true, None) => {}
+            (false, Some(u)) => {
+                ctx.resize(size);
+                let view = WebViewBuilder::new(&servo, ctx.clone())
+                    .url(u)
+                    .hidpi_scale_factor(Scale::new(delegate.dpr.get()))
+                    .delegate(delegate.clone())
+                    .clipboard_delegate(delegate.clone())
+                    .user_content_manager(user_content.clone())
+                    .build();
+                delegate.tabs.borrow_mut().add(tab, view);
+            }
+            (false, None) => return,
+        }
+        let events = delegate.tabs.borrow_mut().show(tab);
+        for e in events {
+            delegate.post(e);
+        }
+    };
     println!("neowebe: serving");
     loop {
         let cmds: Vec<Command> = {
@@ -652,35 +728,39 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
         for cmd in cmds {
             let name = format!("{cmd:?}");
             check(&format_args!("before {}", &name[..name.len().min(80)]));
+            let shown = delegate.tabs.borrow().shown;
             match cmd {
-                Command::Load(u) => match (url::Url::parse(&u), &webview) {
-                    (Ok(u), Some(w)) => w.load(u),
-                    (Ok(u), None) => {
-                        ctx.resize(size);
-                        webview = Some(
-                            WebViewBuilder::new(&servo, ctx.clone())
-                                .url(u)
-                                .hidpi_scale_factor(Scale::new(dpr))
-                                .delegate(delegate.clone())
-                                .clipboard_delegate(delegate.clone())
-                                .user_content_manager(user_content.clone())
-                                .build(),
-                        );
-                    }
-                    (Err(e), _) => delegate.post(Event::Crashed(format!("{u}: {e}"))),
-                },
+                // 1.1's single page: tab 0 (a 1.2 NEOWEB opens tabs)
+                Command::Load(u) | Command::Open { url: u, .. } if url::Url::parse(&u).is_err() => {
+                    delegate.post(Event::Crashed(format!("{u}: not an address")));
+                }
+                Command::Load(u) => open(shown.unwrap_or(0), url::Url::parse(&u).ok(), size),
+                Command::Open { tab, url } => {
+                    open(tab, url::Url::parse(&url).ok(), size);
+                    pending = true;
+                }
+                Command::Activate { tab } => {
+                    open(tab, None, size);
+                    pending = true;
+                }
+                Command::Close { tab } => delegate.tabs.borrow_mut().close(tab),
+                Command::DesktopSite(on) => {
+                    let agent = if on { DESKTOP_AGENT.into() } else { mobile_agent.clone() };
+                    servo.set_preference("user_agent", PrefValue::Str(agent));
+                }
                 Command::Resize { w, h, dpr_milli } => {
                     let new = PhysicalSize::new(w.clamp(1, MAX_W), h.clamp(1, MAX_H));
                     if dpr_milli > 0 {
-                        dpr = dpr_milli as f32 / 1000.0;
+                        delegate.dpr.set(dpr_milli as f32 / 1000.0);
                     }
-                    if let Some(wv) = &webview {
+                    // the rendering context is shared: every page gets the size
+                    for t in &delegate.tabs.borrow().list {
                         if new != size {
-                            wv.resize(new);
+                            t.view.resize(new);
                         }
-                        wv.set_hidpi_scale_factor(Scale::new(dpr));
+                        t.view.set_hidpi_scale_factor(Scale::new(delegate.dpr.get()));
                     }
-                    println!("neowebe: resize {}x{} dpr {dpr}", new.width, new.height);
+                    println!("neowebe: resize {}x{} dpr {}", new.width, new.height, delegate.dpr.get());
                     if new != size && delegate.controls.borrow().ime.is_some() {
                         // shortcut: a fixed delay for the page's relayout; an engine hook if fields land off screen
                         reveal_at = Some(std::time::Instant::now() + Duration::from_millis(150));
@@ -689,26 +769,39 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                     pending = true;
                 }
                 Command::FrameShown { seq } => buffers.shown(seq),
-                _ if webview.is_none() => {} // nothing to act on before the first page
-                Command::Reload => webview.as_ref().unwrap().reload(),
-                Command::Stop => webview
-                    .as_ref()
-                    .unwrap()
-                    .evaluate_javascript("window.stop()", |_| {}),
-                Command::Back => {
-                    webview.as_ref().unwrap().go_back(1);
+                // the page's own controls, answered whichever tab is shown
+                c @ (Command::Answer { .. }
+                | Command::Choose { .. }
+                | Command::Files { .. }
+                | Command::Clipboard { .. }) => answer(&delegate, c),
+                cmd => {
+                    let tabs = delegate.tabs.borrow();
+                    let Some(view) = tabs.shown_view().cloned() else {
+                        continue; // nothing to act on before the first page
+                    };
+                    drop(tabs);
+                    match cmd {
+                        Command::Reload => view.reload(),
+                        Command::Stop => view.evaluate_javascript("window.stop()", |_| {}),
+                        Command::Back => {
+                            view.go_back(1);
+                        }
+                        Command::Forward => {
+                            view.go_forward(1);
+                        }
+                        Command::Press { x, y } => press(&view, &shared, x, y),
+                        Command::Select { op, x, y } => select(&view, &shared, op, x, y),
+                        Command::Find { text, dir } => find(&view, &shared, &text, dir),
+                        other => input(&view, &delegate, other),
+                    }
                 }
-                Command::Forward => {
-                    webview.as_ref().unwrap().go_forward(1);
-                }
-                other => input(webview.as_ref().unwrap(), &delegate, other),
             }
         }
         if let Some(t) = reveal_at
             && std::time::Instant::now() >= t
         {
             reveal_at = None;
-            if let Some(w) = &webview {
+            if let Some(w) = delegate.tabs.borrow().shown_view() {
                 w.evaluate_javascript(
                     "document.activeElement && document.activeElement.scrollIntoView({block:'nearest'})",
                     |_| {},
@@ -723,8 +816,9 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
         if delegate.frame_ready.replace(false) {
             pending = true;
         }
+        let view = delegate.tabs.borrow().shown_view().cloned();
         if pending
-            && let Some(webview) = &webview
+            && let Some(webview) = &view
             && let Some(i) = buffers.free()
         {
             pending = false;
@@ -759,4 +853,130 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
     }
     println!("neowebe: last client gone, exiting");
     Ok(())
+}
+
+/// The page helper (helper.js): long-press, selection, find (WB5c).
+const HELPER_SCRIPT: &str = include_str!("helper.js");
+
+/// The user agent for Desktop site: a desktop Firefox's form, with Servo named.
+const DESKTOP_AGENT: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Servo/0.8.0 Firefox/140.0";
+
+/// `s` as a JavaScript string literal.
+fn js_str(s: &str) -> String {
+    let mut o = String::from('"');
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            '\n' => o.push_str("\\n"),
+            '\r' => o.push_str("\\r"),
+            c if (c as u32) < 0x20 || c == '\u{2028}' || c == '\u{2029}' => {
+                o.push_str(&format!("\\u{:04x}", c as u32))
+            }
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
+
+/// A helper result as numbers and strings.
+fn items(v: &Result<JSValue, servo::JavaScriptEvaluationError>) -> Vec<JSValue> {
+    match v {
+        Ok(JSValue::Array(a)) => a.clone(),
+        Ok(other) => vec![other.clone()],
+        Err(_) => Vec::new(),
+    }
+}
+
+fn num(v: Option<&JSValue>) -> i32 {
+    match v {
+        Some(JSValue::Number(n)) => n.round() as i32,
+        _ => 0,
+    }
+}
+
+fn text(v: Option<&JSValue>) -> String {
+    match v {
+        Some(JSValue::String(s)) => s.clone(),
+        _ => String::new(),
+    }
+}
+
+fn post(shared: &SharedRef, e: Event) {
+    shared.lock().unwrap().post(e);
+}
+
+/// The selection's ends from a helper result's numbers from `from` on.
+fn ends(v: &[JSValue], from: usize) -> Event {
+    Event::Selection {
+        ends: v.iter().skip(from).map(|x| num(Some(x))).collect(),
+    }
+}
+
+/// A long-press: a link or image for the menu, or a word selected.
+fn press(view: &WebView, shared: &SharedRef, x: i32, y: i32) {
+    let shared = shared.clone();
+    view.evaluate_javascript(&format!("__neoweb.press({x},{y})"), move |r| {
+        let v = items(&r);
+        let kind = match num(v.first()) {
+            1 => PressKind::Link,
+            2 => PressKind::Image,
+            3 => PressKind::Text,
+            _ => PressKind::Nothing,
+        };
+        if kind == PressKind::Text {
+            post(&shared, ends(&v, 1));
+            post(
+                &shared,
+                Event::Pressed {
+                    kind,
+                    title: String::new(),
+                    url: String::new(),
+                    y: 0,
+                },
+            );
+            return;
+        }
+        post(
+            &shared,
+            Event::Pressed {
+                kind,
+                title: text(v.get(1)),
+                url: text(v.get(2)),
+                y: num(v.get(3)),
+            },
+        );
+    });
+}
+
+fn select(view: &WebView, shared: &SharedRef, op: SelectOp, x: i32, y: i32) {
+    let shared = shared.clone();
+    if op == SelectOp::Copy {
+        view.evaluate_javascript("__neoweb.text()", move |r| {
+            post(&shared, Event::ClipboardSet(text(items(&r).first())));
+        });
+        return;
+    }
+    let js = match op {
+        SelectOp::SelectAll => "__neoweb.selectAll()".into(),
+        SelectOp::DragStart => format!("__neoweb.drag(0,{x},{y})"),
+        SelectOp::DragEnd => format!("__neoweb.drag(1,{x},{y})"),
+        _ => "__neoweb.clear()".into(),
+    };
+    view.evaluate_javascript(&js, move |r| post(&shared, ends(&items(&r), 0)));
+}
+
+fn find(view: &WebView, shared: &SharedRef, q: &str, dir: i32) {
+    let shared = shared.clone();
+    view.evaluate_javascript(&format!("__neoweb.find({},{dir})", js_str(q)), move |r| {
+        let v = items(&r);
+        post(
+            &shared,
+            Event::Found {
+                index: num(v.first()).max(0) as u32,
+                count: num(v.get(1)).max(0) as u32,
+            },
+        );
+    });
 }

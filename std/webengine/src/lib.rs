@@ -13,6 +13,7 @@ unsafe extern "C" {
 mod random;
 mod serve;
 mod swgl;
+mod tabs;
 
 use std::cell::Cell;
 use std::rc::Rc;

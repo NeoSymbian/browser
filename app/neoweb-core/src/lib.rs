@@ -16,6 +16,7 @@ pub mod chrome;
 pub mod controls;
 pub mod input;
 pub mod start;
+pub mod tabs;
 
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
