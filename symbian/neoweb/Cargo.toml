@@ -17,4 +17,5 @@ neoapp.workspace = true
 neoui-proto.workspace = true
 slint.workspace = true
 neoweb-core.workspace = true
+neoweb-proto = { path = "../../app/neoweb-proto" }
 neoweb-ui.workspace = true

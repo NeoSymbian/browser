@@ -3,7 +3,7 @@
 # NeoSymbian/libc forks. Build with the `neosymbian` toolchain (tools/neosymbian-toolchain.sh) and `cargo sym`.
 [workspace]
 resolver = "3"
-members = ["stdtest", "mixtest", "nettest", "symbian-cc", "cxxrt", "cxxsmoke", "jsshell"]
+members = ["stdtest", "mixtest", "nettest", "neoget", "symbian-cc", "cxxrt", "cxxsmoke", "jsshell", "webengine"]
 
 [workspace.package]
 edition = "2024"
@@ -18,6 +18,25 @@ libc = { git = "https://github.com/NeoSymbian/libc", branch = "neosymbian" }
 mio = { git = "https://github.com/NeoSymbian/mio", branch = "neosymbian" }
 socket2 = { git = "https://github.com/NeoSymbian/socket2", branch = "neosymbian" }
 tokio = { git = "https://github.com/NeoSymbian/tokio", branch = "neosymbian" }
+# Servo (WB4, docs browser.md): crates without a target_os = "symbian" path, each forked on branch neosymbian
+memmap2 = { git = "https://github.com/NeoSymbian/memmap2", branch = "neosymbian" }
+tempfile = { git = "https://github.com/NeoSymbian/tempfile", branch = "neosymbian" }
+parking_lot_core = { git = "https://github.com/NeoSymbian/parking_lot", branch = "neosymbian" }
+libloading = { git = "https://github.com/NeoSymbian/libloading", branch = "neosymbian" }
+inventory = { git = "https://github.com/NeoSymbian/inventory", branch = "neosymbian" }
+# webrender: every crate from the one fork (Servo's rev d399b904 + the FreeType cfg), or two copies would link
+webrender = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+webrender_api = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+wr_glyph_rasterizer = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+peek-poke = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+peek-poke-derive = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+wr_malloc_size_of = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+swgl = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+glsl-to-cxx = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+webrender_build = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+# Servo asks for mozjs =0.26.13 from crates.io: the NeoSymbian/mozjs fork (WB3), as jsshell pins it
+mozjs = { git = "https://github.com/NeoSymbian/mozjs", rev = "812fbdfe98ee207edf5cc32804ecbba19f9ec1bc" }
+mozjs_sys = { git = "https://github.com/NeoSymbian/mozjs", rev = "812fbdfe98ee207edf5cc32804ecbba19f9ec1bc" }
 
 [profile.release]
 panic = "abort"

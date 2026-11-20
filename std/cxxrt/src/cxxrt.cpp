@@ -4,11 +4,15 @@
 // and thread_local uses emulated TLS), and libstdc++'s std::__throw_* helpers as fatal errors.
 #include <chrono>
 #include <errno.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/socket.h>
+#include <termios.h>
+#include <unistd.h>
 
 namespace {
 
@@ -184,6 +188,58 @@ class Math {
 public:
 	static unsigned long Random();
 };
+
+// ---- POSIX pieces P.I.P.S. lacks (declared by symbian/sdk-compat/c): read-write locks over a mutex, fchown
+extern "C" {
+int pthread_rwlock_init(pthread_rwlock_t* l, const pthread_rwlockattr_t*) { return pthread_mutex_init(&l->m, nullptr); }
+int pthread_rwlock_destroy(pthread_rwlock_t* l) { return pthread_mutex_destroy(&l->m); }
+int pthread_rwlock_rdlock(pthread_rwlock_t* l) { return pthread_mutex_lock(&l->m); }
+int pthread_rwlock_wrlock(pthread_rwlock_t* l) { return pthread_mutex_lock(&l->m); }
+int pthread_rwlock_tryrdlock(pthread_rwlock_t* l) { return pthread_mutex_trylock(&l->m); }
+int pthread_rwlock_trywrlock(pthread_rwlock_t* l) { return pthread_mutex_trylock(&l->m); }
+int pthread_rwlock_unlock(pthread_rwlock_t* l) { return pthread_mutex_unlock(&l->m); }
+int fchown(int, uid_t, gid_t) { return 0; }
+// no libdl provider in the ROM: the only users (surfman's wayland/x11 back ends, through libloading) never run with
+// SWGL. Opening anything fails.
+void* dlopen(const char*, int) { return nullptr; }
+void* dlsym(void*, const char*) { return nullptr; }
+int dlclose(void*) { return -1; }
+char* dlerror() { return const_cast<char*>("no dynamic loading on NeoSymbian"); }
+// P.I.P.S.'s libm exports no log2 (its header's is inline, never a symbol), which Rust's f64::log2 calls
+double cxxrt_log2(double x) __asm__("log2");
+double cxxrt_log2(double x) { return log(x) * 1.4426950408889634; }
+float cxxrt_log2f(float x) __asm__("log2f");
+float cxxrt_log2f(float x) { return float(log(double(x)) * 1.4426950408889634); }
+// no socketpair in P.I.P.S.: a pipe, sv[1] -> sv[0], for UnixStream::pair's one-way users (tokio's signal driver,
+// which every runtime with I/O builds). shortcut: one direction only (writing sv[0] fails), upgrade with a socketpair
+// in ossrv when a two-way user appears
+int socketpair(int domain, int, int, int* sv) {
+	if (domain != AF_UNIX) {
+		errno = EOPNOTSUPP;
+		return -1;
+	}
+	return pipe(sv);
+}
+int tcgetattr(int, struct termios*) { errno = ENOTTY; return -1; }
+int tcsetattr(int, int, const struct termios*) { errno = ENOTTY; return -1; }
+}
+
+// euser's User::AllocLen, declared the same way: P.I.P.S.'s malloc allocates from the thread's RHeap
+class RAllocator {
+public:
+	void Check() const; // walks the heap; panics (USER 47-ish heap panics) on a corrupt cell
+};
+class User {
+public:
+	static int AllocLen(const void* aCell);
+	static RAllocator& Allocator(); // the thread's heap (User::Heap() is an inline cast of it)
+};
+
+// Debug aid (neowebe --check-heap): check the whole process heap now, so a corruption panics near its cause
+extern "C" void cxxrt_heap_check() { User::Allocator().Check(); }
+
+// malloc_usable_size (glibc's), which P.I.P.S. lacks: Servo's allocator and SpiderMonkey use it for memory reports
+extern "C" size_t malloc_usable_size(void* p) { return p ? size_t(User::AllocLen(p)) : 0; }
 
 __attribute__((constructor(101))) static void SeedStackGuard() {
 	__stack_chk_guard = Math::Random() | 0xffu;  // never 0 in the low byte: a C string cannot copy over it

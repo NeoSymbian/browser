@@ -76,7 +76,7 @@ ARCH="$FLAGS -mword-relocations -mno-unaligned-access"
 # build's Symbian prefix header, force-included when compiling (not for -E: its typedefs would land in what is
 # preprocessed, e.g. SpiderMonkey's self-hosted JavaScript)
 PREFIX="-include $SDK/epoc32/include/symbian_gcc_prefix.h"
-ABI="-fshort-wchar -fno-short-enums -fno-exceptions -fno-strict-aliasing -fno-lifetime-dse -fno-delete-null-pointer-checks -ffunction-sections -fdata-sections -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__"
+ABI="-fshort-wchar -fno-short-enums -fno-exceptions -fno-strict-aliasing -fno-lifetime-dse -fno-delete-null-pointer-checks -ffunction-sections -fdata-sections -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__ -D__LONG_LONG_SUPPORTED -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS"
 # no newlib: libstdc++'s headers, then P.I.P.S.'s C headers, then GCC's own (stddef, stdarg, arm_neon), then e32's
 INC_C="-nostdinc -isystem $SDK/compat -isystem $SDK/compat-c -isystem $SDK/epoc32/include/stdapis -isystem $SDK/arm-gnu/lib/gcc/arm-none-eabi/$VER/include -isystem $SDK/epoc32/include"
 INC_CXX="-nostdinc -nostdinc++ -isystem $SDK/compat -isystem $CXXINC -isystem $CXXINC/arm-none-eabi/$MULTI -isystem $CXXINC/backward -isystem $SDK/compat-c -isystem $SDK/epoc32/include/stdapis -isystem $SDK/arm-gnu/lib/gcc/arm-none-eabi/$VER/include -isystem $SDK/epoc32/include"
@@ -107,14 +107,18 @@ for tool in gcc g++ cpp; do
 #!/bin/sh
 . "$SDK/bin/armv7-symbian-env"
 case $tool in g++) INC="\$INC_CXX" ;; *) INC="\$INC_C" ;; esac
+# C: aws-lc names pthread_rwlock_t without including <pthread.h> off glibc (sdk-compat/c/pthread.h adds the type)
+[ "$tool" = gcc ] && PREFIX="\$PREFIX -include pthread.h"
 # a link (no -c/-E/-S/-M): against the stubs, never newlib
 LINK="-nostdlib -L$SDK/lib -Wl,--start-group -lneostubs -lgcc -Wl,--end-group -Wl,--no-warn-mismatch -Wl,--defsym,_start=0"
-for a in "\$@"; do case "\$a" in -c|-E|-S|-M|-MM) LINK= ;; esac; case "\$a" in -E) PREFIX= ;; esac; done
+# no prefix header in a preprocess (-E) or an assembly source (.S: its C typedefs are not assembly)
+for a in "\$@"; do case "\$a" in -c|-E|-S|-M|-MM) LINK= ;; esac; case "\$a" in -E|*.S|*.s|assembler*) PREFIX= ;; esac; done
 [ "$tool" = cpp ] && LINK=
-# no position-independent code: an E32 image takes absolute word relocations only (and nothing here is a DSO)
+# no position-independent code: an E32 image takes absolute word relocations only (and nothing here is a DSO);
+# no -pthread: P.I.P.S. threads need no flag (bare-metal GCC rejects it)
 for a do
 	shift
-	case "\$a" in -fPIC|-fpic|-fPIE|-fpie|-pie|-shared) continue ;; esac
+	case "\$a" in -fPIC|-fpic|-fPIE|-fpie|-pie|-shared|-pthread) continue ;; esac
 	set -- "\$@" "\$a"
 done
 # the target's ABI flags last: they win over any a caller adds (cc-rs's guesses for an unknown target)
@@ -127,7 +131,7 @@ done
 {
 	printf '%s\n' --target=armv7a-none-eabi -mfloat-abi=softfp -mfpu=neon -fshort-wchar -fno-short-enums -nostdlibinc
 	printf '%s\n' -include "$SDK/epoc32/include/symbian_gcc_prefix.h"
-	for d in -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__; do
+	for d in -D_UNICODE -D__SYMBIAN32__ -D__GCCE__ -D__EABI__ -D__EPOC32__ -D__MARM__ -D__MARM_ARMV5__ -D__SOFTFP= -D__symbian__ -D__LONG_LONG_SUPPORTED -D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS; do
 		printf '%s\n' "$d"
 	done
 	for d in "$SDK/compat" "$CXXINC" "$CXXINC/arm-none-eabi/$MULTI" "$CXXINC/backward" "$SDK/compat-c" \

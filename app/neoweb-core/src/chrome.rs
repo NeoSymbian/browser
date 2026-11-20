@@ -65,22 +65,27 @@ impl ChromeScroll {
     }
 }
 
-/// The stand-in engine's load: the progress line runs 0.1 → 1 over a few ticks (100 ms each), so the chrome's
-/// loading state (✕ stop, the line) is real before Servo reports progress (WB4).
+/// The address bar's progress line and Stop button.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Loading {
-    ticks: u32,
+    step: u32,
     active: bool,
 }
 
-const LOAD_TICKS: u32 = 6;
+const FINISHED: u32 = 6;
 
 impl Loading {
     pub fn start(&mut self) {
-        *self = Self {
-            ticks: 0,
-            active: true,
+        self.update(neoweb_proto::Load::Started);
+    }
+    pub(crate) fn update(&mut self, phase: neoweb_proto::Load) {
+        use neoweb_proto::Load;
+        self.step = match phase {
+            Load::Started => 0,
+            Load::HeadParsed => FINISHED / 2,
+            Load::Complete => FINISHED,
         };
+        self.active = phase != Load::Complete;
     }
     pub fn stop(&mut self) {
         self.active = false;
@@ -89,15 +94,15 @@ impl Loading {
         self.active
     }
     pub fn progress(&self) -> f32 {
-        0.1 + 0.9 * self.ticks as f32 / LOAD_TICKS as f32
+        0.1 + 0.9 * (self.step as f32 / FINISHED as f32)
     }
-    /// One tick; true when the load just ended.
+    /// Advance the stand-in engine's progress. Live pages use the engine's load events.
     pub fn tick(&mut self) -> bool {
         if !self.active {
             return false;
         }
-        self.ticks += 1;
-        if self.ticks >= LOAD_TICKS {
+        self.step += 1;
+        if self.step >= FINISHED {
             self.active = false;
             return true;
         }
