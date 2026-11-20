@@ -5,6 +5,11 @@
 //! loaded and painted, writes the frame as a PNG and prints the time, frames and memory (WB4b).
 //! `neowebe --serve [--log LEVEL]` is the engine process behind NEOWEB (WB4c, `serve.rs`).
 
+unsafe extern "C" {
+    /// cxxrt: User::Heap().Check(), panics on a corrupt heap
+    pub(crate) fn cxxrt_heap_check();
+}
+
 mod random;
 mod serve;
 mod swgl;

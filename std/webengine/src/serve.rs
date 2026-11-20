@@ -332,6 +332,19 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
     let mut buffers = Buffers::default();
     let mut pending = false;
     let mut stats = Stats::default();
+    // Debug aid: with the file C:/neowebe.check present, the whole heap is checked after every step (a corrupt
+    // heap panics there, just after the line naming the step) and every 500 ms when idle.
+    let check_heap = std::path::Path::new("C:/neowebe.check").exists();
+    let mut last_check = std::time::Instant::now();
+    let check = |what: &dyn std::fmt::Display| {
+        if check_heap {
+            println!("neowebe: hc {what}");
+            unsafe { crate::cxxrt_heap_check() };
+        }
+    };
+    if check_heap {
+        println!("neowebe: heap checks on");
+    }
     println!("neowebe: serving");
     loop {
         let cmds: Vec<Command> = {
@@ -346,6 +359,8 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
             s.cmds.drain(..).collect()
         };
         for cmd in cmds {
+            let name = format!("{cmd:?}");
+            check(&format_args!("before {}", &name[..name.len().min(80)]));
             match cmd {
                 Command::Load(u) => match (url::Url::parse(&u), &webview) {
                     (Ok(u), Some(w)) => w.load(u),
@@ -393,6 +408,10 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
             }
         }
         servo.spin_event_loop();
+        if check_heap && last_check.elapsed() >= Duration::from_millis(500) {
+            last_check = std::time::Instant::now();
+            unsafe { crate::cxxrt_heap_check() };
+        }
         if delegate.frame_ready.replace(false) {
             pending = true;
         }
@@ -401,13 +420,16 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
             && let Some(i) = buffers.free()
         {
             pending = false;
+            check(&"before paint");
             let t0 = std::time::Instant::now();
             webview.paint();
             let t1 = std::time::Instant::now();
+            check(&"after paint");
             // SAFETY: buffer i is inside the chunk (FrameHeader::layout), MAX_H rows of `stride` bytes, not held
             let dst = unsafe { chunk.base().add(header.offsets[i] as usize) };
             if let Some((w, h)) = ctx.copy_frame(dst, header.stride as usize, MAX_W, MAX_H) {
                 stats.add(t1 - t0, t1.elapsed());
+                check(&"after copy");
                 buffers.seq = buffers.seq.wrapping_add(1);
                 buffers.held[i] = Some(buffers.seq);
                 delegate.post(Event::Frame {

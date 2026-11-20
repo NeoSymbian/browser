@@ -225,10 +225,18 @@ int tcsetattr(int, int, const struct termios*) { errno = ENOTTY; return -1; }
 }
 
 // euser's User::AllocLen, declared the same way: P.I.P.S.'s malloc allocates from the thread's RHeap
+class RAllocator {
+public:
+	void Check() const; // walks the heap; panics (USER 47-ish heap panics) on a corrupt cell
+};
 class User {
 public:
 	static int AllocLen(const void* aCell);
+	static RAllocator& Allocator(); // the thread's heap (User::Heap() is an inline cast of it)
 };
+
+// Debug aid (neowebe --check-heap): check the whole process heap now, so a corruption panics near its cause
+extern "C" void cxxrt_heap_check() { User::Allocator().Check(); }
 
 // malloc_usable_size (glibc's), which P.I.P.S. lacks: Servo's allocator and SpiderMonkey use it for memory reports
 extern "C" size_t malloc_usable_size(void* p) { return p ? size_t(User::AllocLen(p)) : 0; }
