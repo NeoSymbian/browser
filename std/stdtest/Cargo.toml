@@ -10,3 +10,4 @@ crate-type = ["staticlib"]
 
 [dependencies]
 e32.workspace = true
+libc.workspace = true
