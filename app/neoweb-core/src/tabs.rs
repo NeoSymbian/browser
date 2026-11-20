@@ -142,6 +142,13 @@ impl Tabs {
         c
     }
 
+    /// The engine started again with no pages: every tab reloads when shown.
+    pub fn forget_pages(&mut self) {
+        for t in &mut self.list {
+            t.loaded = false;
+        }
+    }
+
     /// A tab's address or title changed.
     pub fn info(&mut self, id: u32, url: &str, title: &str) {
         if let Some(t) = self.get_mut(id) {

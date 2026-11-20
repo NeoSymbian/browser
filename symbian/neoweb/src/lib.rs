@@ -22,10 +22,12 @@ use neoapp::{App, AppEvent, Page, Query};
 use neoui_proto::{Fingers, InputEvent, TouchPhase, ipc};
 use neoweb_core::controls::{self, BackStep};
 use neoweb_core::input::{self, Suggestion};
+use neoweb_core::tabs::{Change, Tabs};
 use neoweb_core::{Header, LiveTab, START, count_label, start};
-use neoweb_proto::{Command, DialogKind, Event, SelectItem, TouchKind};
+use neoweb_proto::{Command, DialogKind, Event, PressKind, SelectItem, SelectOp, TouchKind};
 use neoweb_ui::{
-    BrowserApp, BrowserState, KeyboardFocus, Kit, SelectRow, ShortcutTile, Suggest, Theme,
+    BrowserApp, BrowserState, KeyboardFocus, Kit, SelectRow, ShortcutTile, Spot, Suggest, TabCard,
+    Theme,
 };
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
@@ -58,9 +60,24 @@ enum Control {
     },
 }
 
-/// One tab for now (Opened pages is UI2), the pages visited (title, address; oldest first), the chrome's state.
+/// A finger held still on the page: a long-press after [`PRESS_MS`] (WB5c).
+#[derive(Clone, Copy)]
+struct Press {
+    id: u8,
+    x: i32,
+    y: i32,
+    at: u64,
+}
+
+const PRESS_MS: u64 = 500;
+
+/// The opened pages (UI2), the shown tab's page, the pages visited (title, address; oldest first), the chrome.
 #[derive(Default)]
 struct Model {
+    tabs: Tabs,
+    /// small copies of tabs' last frames (Opened pages), and the frame shown now
+    thumbs: Vec<(u32, slint::Image)>,
+    frame: Option<slint::Image>,
     live: LiveTab,
     showing_web: bool,
     visited: Vec<(String, String)>,
@@ -79,6 +96,20 @@ struct Model {
     never_save: Vec<String>,
     /// the page size last sent to the engine
     sent: Option<Command>,
+    /// commands for the engine, sent after each event (WB5c)
+    out: Vec<Command>,
+    /// a NOTE to show after this event
+    note: Option<&'static str>,
+    /// a long-press in the making; a finger the page doesn't get (long-pressed, or dragging a selection end)
+    press: Option<Press>,
+    taken: Option<u8>,
+    /// the selection end being dragged; the selection's ends (page px, Event::Selection)
+    drag: Option<SelectOp>,
+    selection: Vec<i32>,
+    finding: bool,
+    /// the next copied text is a search (the selection bar's Search), not for the clipboard
+    search_copy: bool,
+    desktop: bool,
 }
 
 impl Model {
@@ -99,7 +130,247 @@ impl Model {
         self.live.url = url.clone();
         self.live.title.clear();
         self.live.crashed = false;
-        Some(Command::Load(url))
+        let Some(tab) = self.tabs.current else {
+            self.switch(ui, |t| t.open(&url));
+            return None;
+        };
+        self.tabs.info(tab, &url, "");
+        Some(Command::Open { tab, url })
+    }
+
+    /// Change the tabs with `f`: keep the shown page's thumbnail, free evicted or closed pages, show the new
+    /// current tab (its page made again with its address when it has none).
+    fn switch(&mut self, ui: &BrowserApp, f: impl FnOnce(&mut Tabs) -> Option<Change>) {
+        if let (Some(cur), Some(img)) = (self.tabs.current, self.frame.take()) {
+            self.thumbs.retain(|(t, _)| *t != cur);
+            self.thumbs.push((cur, thumb(&img)));
+        }
+        match f(&mut self.tabs) {
+            Some(c) => self.apply_change(ui, c),
+            None => self.note = Some("30 pages are open: close one first"),
+        }
+    }
+
+    fn apply_change(&mut self, ui: &BrowserApp, c: Change) {
+        for tab in c.free {
+            self.out.push(Command::Close { tab });
+        }
+        self.thumbs.retain(|(t, _)| self.tabs.get(*t).is_some());
+        let Some((tab, reload)) = c.show else {
+            if self.tabs.current.is_none()
+                && let Some(c) = self.tabs.open(START)
+            {
+                // the last tab closed: a new one with the start page
+                self.apply_change(ui, c);
+            }
+            return;
+        };
+        let t = self.tabs.get(tab).cloned().unwrap_or_default();
+        self.live = LiveTab {
+            url: t.url.clone(),
+            title: t.title.clone(),
+            ..LiveTab::default()
+        };
+        self.showing_web = !t.url.is_empty() && t.url != START;
+        self.selection.clear();
+        self.finding = false;
+        self.end_edit(ui);
+        ui.global::<BrowserState>()
+            .set_frame(slint::Image::default());
+        match reload {
+            Some(url) if self.showing_web => {
+                if self.thumbs.iter().any(|(id, _)| *id == tab) {
+                    self.note = Some("Page reloaded to save memory");
+                }
+                self.out.push(Command::Open { tab, url });
+            }
+            Some(_) => {} // the start page has no engine page
+            None => self.out.push(Command::Activate { tab }),
+        }
+    }
+
+    /// The link (or the page) to share: on the clipboard, and Messages opened to write (it takes no text yet).
+    fn share(&mut self, app: &App, url: &str) {
+        if app.set_clipboard(url) {
+            let _ = app.open("messages", 3, ""); // phone-core page::messages::NEW
+            self.note = Some("Link copied: paste it in the message");
+        }
+    }
+
+    fn copy_link(&mut self, app: &App, url: &str) {
+        self.note = Some(if app.set_clipboard(url) {
+            "Link copied"
+        } else {
+            "The link is too long to copy"
+        });
+    }
+
+    /// UI2's actions (WB5c): tabs, Options, the link menu, the selection, find. True when `action` was one.
+    fn act2(&mut self, app: &App, ui: &BrowserApp, action: &str, i: i32) -> bool {
+        let s = ui.global::<BrowserState>();
+        let nth = |m: &Self| m.tabs.list.get(i as usize).map(|t| t.id);
+        match action {
+            "tabs" => {
+                self.show_tabs(ui);
+                s.set_tabs_open(true);
+            }
+            "tab" => {
+                if let Some(id) = nth(self) {
+                    self.switch(ui, |t| Some(t.show(id)));
+                }
+            }
+            "tab-close" => {
+                if let Some(id) = nth(self) {
+                    self.switch(ui, |t| Some(t.close(id)));
+                    self.show_tabs(ui);
+                }
+            }
+            "new-tab" => self.switch(ui, |t| t.open(START)),
+            "tabs-options" => ui.invoke_show_sheet(6),
+            "tabs-back" => {}
+            "option" => match i {
+                0 => self.switch(ui, |t| t.open(START)),
+                1 if self.showing_web => {
+                    self.finding = true;
+                    s.set_find_text("".into());
+                    s.set_find_count("".into());
+                }
+                2 if self.showing_web => self.share(app, &self.live.url.clone()),
+                3 if self.showing_web => self.copy_link(app, &self.live.url.clone()),
+                4 => {
+                    self.desktop = !self.desktop;
+                    self.out.push(Command::DesktopSite(self.desktop));
+                    if self.showing_web {
+                        self.out.push(Command::Reload);
+                    }
+                }
+                // Bookmarks, History, Downloads, Settings: WB5d
+                _ => {}
+            },
+            "link" => {
+                let url: String = s.get_link_url().into();
+                match i {
+                    0 => self.switch(ui, |t| t.open(&url)),
+                    1 => self.copy_link(app, &url),
+                    // 2 Download link: WB5d
+                    3 => self.share(app, &url),
+                    _ => {}
+                }
+            }
+            "link-cancel" => {}
+            "selection" => {
+                self.search_copy = i == 2;
+                let op = if i == 1 {
+                    SelectOp::SelectAll
+                } else {
+                    SelectOp::Copy
+                };
+                self.out.push(Command::Select { op, x: 0, y: 0 });
+                if i != 1 {
+                    self.out.push(Command::Select {
+                        op: SelectOp::Clear,
+                        x: 0,
+                        y: 0,
+                    });
+                }
+            }
+            "find-edited" | "find-next" | "find-prev" => {
+                let dir = match action {
+                    "find-next" => 1,
+                    "find-prev" => -1,
+                    _ => 0,
+                };
+                self.out.push(Command::Find {
+                    text: s.get_find_text().into(),
+                    dir,
+                });
+            }
+            "find-close" => self.end_find(ui),
+            _ => return false,
+        }
+        true
+    }
+
+    fn end_find(&mut self, ui: &BrowserApp) {
+        if self.finding {
+            self.finding = false;
+            ui.global::<KeyboardFocus>().invoke_close();
+            self.out.push(Command::Find {
+                text: String::new(),
+                dir: 0,
+            });
+        }
+    }
+
+    /// Opened pages: a card per tab, the current one with its live frame.
+    fn show_tabs(&self, ui: &BrowserApp) {
+        let cards: Vec<TabCard> = self
+            .tabs
+            .list
+            .iter()
+            .map(|t| {
+                let current = self.tabs.current == Some(t.id);
+                let domain = Header::of(&t.url).domain;
+                let title = if !t.title.is_empty() {
+                    t.title.as_str()
+                } else if t.url == START || t.url.is_empty() {
+                    "New tab"
+                } else {
+                    domain.as_str()
+                };
+                let thumb = match (current, &self.frame) {
+                    (true, Some(f)) => thumb(f),
+                    _ => self
+                        .thumbs
+                        .iter()
+                        .find(|(id, _)| *id == t.id)
+                        .map(|(_, i)| i.clone())
+                        .unwrap_or_default(),
+                };
+                TabCard {
+                    title: title.into(),
+                    letter: SharedString::from(String::from(
+                        domain
+                            .chars()
+                            .next()
+                            .map_or('+', |c| c.to_ascii_uppercase()),
+                    )),
+                    color: slint::Color::from_argb_encoded(badge(&domain)),
+                    thumb,
+                    current,
+                }
+            })
+            .collect();
+        ui.global::<BrowserState>().set_tabs(model(cards));
+    }
+
+    /// The selection's ends from the engine: the handles and the bar (above the start, or under the end).
+    fn selection(&mut self, app: &App, ui: &BrowserApp, ends: Vec<i32>) {
+        let s = ui.global::<BrowserState>();
+        self.selection = ends;
+        let [ax, ay, bx, by, line] = self.selection[..] else {
+            s.set_selection_shown(false);
+            return;
+        };
+        let top = ui.get_page_top_px();
+        let dp = app.dp;
+        s.set_handle_a(Spot {
+            x: ax as f32,
+            y: (ay + top) as f32,
+        });
+        s.set_handle_b(Spot {
+            x: bx as f32,
+            y: (by + top) as f32,
+        });
+        let bar_h = 40.0 * dp;
+        let above = (ay + top) as f32 - bar_h - 12.0 * dp;
+        s.set_selection_y(if above > top as f32 {
+            above
+        } else {
+            (by + top + line) as f32 + 40.0 * dp
+        });
+        s.set_selection_x(ax as f32 - 60.0 * dp);
+        s.set_selection_shown(true);
     }
 
     fn end_edit(&mut self, ui: &BrowserApp) {
@@ -143,10 +414,33 @@ impl Model {
                 return self.go(ui, url);
             }
             "cancel-edit" => self.end_edit(ui),
+            "back" if self.finding => self.end_find(ui),
+            "back" if !self.selection.is_empty() => {
+                return Some(Command::Select {
+                    op: SelectOp::Clear,
+                    x: 0,
+                    y: 0,
+                });
+            }
             "back" => match controls::back_step(self.editing, self.showing_web, self.live.back) {
                 BackStep::EndEdit => self.end_edit(ui),
                 BackStep::History => return Some(Command::Back),
-                BackStep::StartPage | BackStep::Shell => self.showing_web = false,
+                BackStep::StartPage | BackStep::Shell => {
+                    // a page's new window goes back to the page that opened it
+                    let opener = self.tabs.current().and_then(|t| t.opener);
+                    match (opener, self.tabs.current) {
+                        (Some(o), Some(cur)) if self.tabs.get(o).is_some() => {
+                            self.switch(ui, |t| {
+                                let mut c = t.close(cur);
+                                let s = t.show(o);
+                                c.show = s.show;
+                                c.free.extend(s.free);
+                                Some(c)
+                            });
+                        }
+                        _ => self.showing_web = false,
+                    }
+                }
             },
             "forward" if !self.showing_web => self.showing_web = !self.live.url.is_empty(),
             "forward" if self.live.forward => return Some(Command::Forward),
@@ -282,6 +576,40 @@ impl Model {
                 self.control = Control::Upload { id, accept };
                 ui.invoke_show_sheet(3);
             }
+            Event::Pressed {
+                kind: PressKind::Link | PressKind::Image,
+                title,
+                url,
+                y,
+            } => {
+                s.set_link_title(title.as_str().into());
+                s.set_link_url(url.as_str().into());
+                s.set_link_y((y + ui.get_page_top_px()) as f32);
+                ui.invoke_show_sheet(5);
+            }
+            Event::Pressed { .. } => {}
+            Event::Selection { ends } => self.selection(app, ui, ends),
+            Event::Found { index, count } => {
+                s.set_find_count(alloc::format!("{index}/{count}").as_str().into());
+            }
+            Event::TabInfo { tab, url, title } => self.tabs.info(tab, &url, &title),
+            Event::Created { tab, opener } => {
+                if let (Some(cur), Some(img)) = (self.tabs.current, self.frame.take()) {
+                    self.thumbs.retain(|(t, _)| *t != cur);
+                    self.thumbs.push((cur, thumb(&img)));
+                }
+                let c = self.tabs.created(tab, opener);
+                for tab in c.free {
+                    self.out.push(Command::Close { tab });
+                }
+                self.live = LiveTab::default();
+                self.showing_web = true;
+                self.selection.clear();
+            }
+            Event::ClipboardSet(text) if core::mem::take(&mut self.search_copy) => {
+                let url = input::search(text.trim());
+                self.switch(ui, |t| t.open(&url));
+            }
             Event::ClipboardSet(text) => {
                 // over the shell's 2048 bytes the copy is refused, never cut (browser-ui.md)
                 if !app.set_clipboard(&text) {
@@ -359,6 +687,9 @@ impl Model {
     fn apply(&mut self, event: Event) {
         let visit = matches!(event, Event::Url(_) | Event::Title(_));
         self.live.apply(event);
+        if visit && let Some(tab) = self.tabs.current {
+            self.tabs.info(tab, &self.live.url, &self.live.title);
+        }
         if visit && !self.live.url.is_empty() {
             match self.visited.last_mut() {
                 Some((title, url)) if *url == self.live.url => title.clone_from(&self.live.title),
@@ -367,6 +698,19 @@ impl Model {
                     .push((self.live.title.clone(), self.live.url.clone())),
             }
         }
+    }
+
+    /// The long-press timer ran out: the page's touch is cancelled and the engine says what was pressed.
+    fn long_press(&mut self) {
+        let Some(p) = self.press.take() else { return };
+        self.taken = Some(p.id);
+        self.out.push(Command::Touch {
+            kind: TouchKind::Cancel,
+            id: p.id.into(),
+            x: p.x,
+            y: p.y,
+        });
+        self.out.push(Command::Press { x: p.x, y: p.y });
     }
 
     /// Capture a finger at press time so a drag across the toolbar still ends in the page.
@@ -380,6 +724,53 @@ impl Model {
             && !self.editing
             && (0..ui.get_page_width_px()).contains(&x)
             && (0..ui.get_page_height_px()).contains(&y);
+        // a finger taken from the page: dragging a selection end, or after a long-press
+        if self.taken == Some(id) {
+            match (phase, self.drag) {
+                (TouchPhase::Move, Some(op)) => self.out.push(Command::Select { op, x, y }),
+                (TouchPhase::Up, _) => (self.taken, self.drag) = (None, None),
+                _ => {}
+            }
+            return None;
+        }
+        if in_page && phase == TouchPhase::Down {
+            // a selection end's knob (26 dp under the line's top) takes the finger
+            let grab = (28.0 * ui.global::<Theme>().get_dp()) as i32;
+            let near = |px: i32, py: i32| (x - px).abs() < grab && (y - (py + grab)).abs() < grab;
+            if let [ax, ay, bx, by, _] = self.selection[..] {
+                let op = if near(ax, ay) {
+                    Some(SelectOp::DragStart)
+                } else if near(bx, by) {
+                    Some(SelectOp::DragEnd)
+                } else {
+                    None
+                };
+                if op.is_some() {
+                    (self.taken, self.drag) = (Some(id), op);
+                    return None;
+                }
+                // a tap elsewhere ends the selection (and goes to the page)
+                self.out.push(Command::Select {
+                    op: SelectOp::Clear,
+                    x: 0,
+                    y: 0,
+                });
+            }
+            self.press = Some(Press {
+                id,
+                x,
+                y,
+                at: e32::time::millis(),
+            });
+        }
+        if let Some(p) = self.press
+            && p.id == id
+        {
+            let slop = (10.0 * ui.global::<Theme>().get_dp()) as i32;
+            if phase == TouchPhase::Up || (p.x - x).abs() > slop || (p.y - y).abs() > slop {
+                self.press = None;
+            }
+        }
         self.fingers
             .route(id, phase, in_page)
             .then(|| Command::Touch {
@@ -414,7 +805,12 @@ impl Model {
         } else {
             !self.live.url.is_empty()
         });
-        s.set_count(count_label(1).as_str().into());
+        s.set_count(count_label(self.tabs.list.len()).as_str().into());
+        s.set_finding(self.finding);
+        s.set_desktop_site(self.desktop);
+        if self.selection.is_empty() {
+            s.set_selection_shown(false);
+        }
         s.set_loading(self.showing_web && self.live.loading.active());
         s.set_progress(self.live.loading.progress());
         s.set_editing(self.editing);
@@ -449,6 +845,31 @@ impl Model {
             .collect();
         s.set_suggestions(model(rows));
     }
+}
+
+/// A sixth of a frame, for Opened pages' cards.
+fn thumb(img: &slint::Image) -> slint::Image {
+    let Some(src) = img.to_rgba8() else {
+        return slint::Image::default();
+    };
+    let (w, h) = (src.width() / 6, src.height() / 6);
+    let mut dst = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(w, h);
+    let from = src.as_slice();
+    let sw = src.width() as usize;
+    for (i, px) in dst.make_mut_slice().iter_mut().enumerate() {
+        let (x, y) = (i % w as usize, i / w as usize);
+        *px = from[y * 6 * sw + x * 6];
+    }
+    slint::Image::from_rgba8(dst)
+}
+
+/// A tab badge's colour from its site's name.
+fn badge(domain: &str) -> u32 {
+    const COLORS: [u32; 6] = [0x5b6472, 0x24292f, 0x2f80ed, 0x22b46a, 0xe2a92a, 0xe5484d];
+    let h = domain
+        .bytes()
+        .fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(b.into()));
+    0xff00_0000 | COLORS[h as usize % COLORS.len()]
 }
 
 fn select_rows(items: &[SelectItem]) -> ModelRc<SelectRow> {
@@ -557,6 +978,7 @@ fn run() -> Result<(), i32> {
         .collect();
     ui.global::<BrowserState>().set_shortcuts(model(tiles));
     let mut m = Model::default();
+    m.tabs.open(START);
     m.show(&ui);
     let actions = Rc::new(RefCell::new(VecDeque::new()));
     let queue = actions.clone();
@@ -576,7 +998,15 @@ fn run() -> Result<(), i32> {
         let mut next = pin!(shell_event(&app));
         loop {
             // Both NEXT_EVENT requests stay pinned when a timer or the other server wakes us.
-            let event = rt::select(next.as_mut(), rt::select(connection.next(), wake(&app))).await;
+            let pressing = m.press.map(|p| p.at + PRESS_MS);
+            let event = rt::select(
+                next.as_mut(),
+                rt::select(
+                    connection.next(),
+                    rt::select(wake(&app), press_timer(pressing)),
+                ),
+            )
+            .await;
             let mut result = Ok(());
             match event {
                 Either::Left(event) => {
@@ -585,7 +1015,8 @@ fn run() -> Result<(), i32> {
                     if event == AppEvent::Quit {
                         return Ok(());
                     }
-                    let page_typing = m.page_keys > 0 && !m.editing && !ui.get_sheet_open();
+                    let page_typing =
+                        m.page_keys > 0 && !m.editing && !m.finding && !ui.get_sheet_open();
                     if let AppEvent::Input(input) = event
                         && let Some(command) = m.touch(&ui, input)
                     {
@@ -635,8 +1066,16 @@ fn run() -> Result<(), i32> {
                             let size = resize(&app, &ui);
                             connection.send(size.clone())?;
                             m.sent = Some(size);
-                            if !m.live.url.is_empty() {
-                                connection.send(Command::Load(m.live.url.clone()))?;
+                            // a new engine has no pages: the current tab's is made again, the others reload when shown
+                            m.tabs.forget_pages();
+                            if let Some(tab) = m.tabs.current
+                                && m.showing_web
+                            {
+                                m.tabs.show(tab);
+                                connection.send(Command::Open {
+                                    tab,
+                                    url: m.live.url.clone(),
+                                })?;
                             }
                             Ok(())
                         }
@@ -650,6 +1089,7 @@ fn run() -> Result<(), i32> {
                             if !m.live.url.is_empty() {
                                 let t = e32::time::fast_counter();
                                 let image = connection.frame(buffer, width, height)?;
+                                m.frame = Some(image.clone());
                                 ui.global::<BrowserState>().set_frame(image);
                                 framed = Some(us_since(t));
                             }
@@ -668,7 +1108,12 @@ fn run() -> Result<(), i32> {
                             | Event::FilePick { .. }
                             | Event::ClipboardSet(_)
                             | Event::ClipboardGet { .. }
-                            | Event::Login { .. }),
+                            | Event::Login { .. }
+                            | Event::Pressed { .. }
+                            | Event::Selection { .. }
+                            | Event::Found { .. }
+                            | Event::TabInfo { .. }
+                            | Event::Created { .. }),
                         ) => match m.control(&app, &ui, event) {
                             Some(answer) => connection.send(answer),
                             None => Ok(()),
@@ -683,7 +1128,8 @@ fn run() -> Result<(), i32> {
                         }
                     });
                 }
-                Either::Right(Either::Right(())) => {}
+                Either::Right(Either::Right(Either::Left(()))) => {}
+                Either::Right(Either::Right(Either::Right(()))) => m.long_press(),
             }
             if let Err(error) = result {
                 connection = Connection::Offline;
@@ -692,6 +1138,8 @@ fn run() -> Result<(), i32> {
             while let Some((action, i)) = actions.borrow_mut().pop_front() {
                 let command = if action == "upload" {
                     m.pick(&app, i)
+                } else if m.act2(&app, &ui, &action, i) {
+                    None
                 } else {
                     m.act(&ui, &action, i)
                 };
@@ -703,6 +1151,17 @@ fn run() -> Result<(), i32> {
                 }
                 m.show(&ui);
             }
+            for command in core::mem::take(&mut m.out) {
+                if let Err(error) = connection.send(command) {
+                    connection = Connection::Offline;
+                    m.crash(&ui, alloc::format!("engine IPC {}", error));
+                    break;
+                }
+            }
+            if let Some(note) = m.note.take() {
+                let _ = app.note(note, "");
+            }
+            m.show(&ui);
             sync(&app, &ui, &mut m, &mut shown)?;
             // the page area changed (the keyboard came or went): tell the engine once
             let size = resize(&app, &ui);
@@ -725,6 +1184,17 @@ async fn shell_event(app: &App) -> Result<AppEvent, i32> {
     args.des8(0, &mut descriptor);
     app.server.send(ipc::NEXT_EVENT, &args).await?;
     AppEvent::decode(&bytes).ok_or(-6)
+}
+
+/// The long-press deadline (ms on `e32::time::millis`), if a finger is held.
+async fn press_timer(at: Option<u64>) {
+    match at {
+        Some(at) => {
+            let left = at.saturating_sub(e32::time::millis()).max(1);
+            e32::time::delay((left * 1000).min(i32::MAX as u64) as i32).await
+        }
+        None => pending().await,
+    }
 }
 
 async fn wake(app: &App) {
@@ -767,7 +1237,7 @@ fn sync(app: &App, ui: &BrowserApp, m: &mut Model, shown: &mut Page) -> Result<(
     }
     let kf = ui.global::<KeyboardFocus>();
     // a Slint field (address, prompt) first; else the page's focused field (seq -1 marks the page's own)
-    let page_keys = m.page_keys > 0 && !m.editing && !ui.get_sheet_open();
+    let page_keys = m.page_keys > 0 && !m.editing && !m.finding && !ui.get_sheet_open();
     let want = if kf.get_open() || !page_keys {
         (kf.get_open(), kf.get_seq(), kf.get_mode())
     } else {
