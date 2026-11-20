@@ -4,11 +4,13 @@
 //! - **Transport:** NEOWEBE runs the Symbian server [`SERVER_NAME`]. NEOWEB sends each [`Command`] with
 //!   [`func::COMMAND`] (argument 0: the encoded command) and keeps one [`func::NEXT_EVENT`] outstanding (argument 0:
 //!   a buffer of [`EVENT_MAX`] bytes); the engine completes it with the encoded [`Event`]'s length.
-//! - **Frames:** an unnamed global chunk holds a [`FrameHeader`] and two BGRX buffers of the page area. NEOWEB asks
-//!   for it with [`func::FRAMES`], which the engine completes with a handle to the chunk (again after a resize: the
-//!   header's size tells which chunk a frame is in).
-//!   [`Event::Frame`] names the buffer just written; the engine writes nothing more until
-//!   [`Command::FrameShown`] returns that buffer (WB0's rule: never paint faster than frames are shown).
+//! - **Frames:** an unnamed global chunk holds a [`FrameHeader`] and two buffers sized for the largest page area
+//!   (RGBA8, opaque, rows top-down: what Slint's `SharedPixelBuffer<Rgba8Pixel>` takes with one copy). NEOWEB asks
+//!   for it once with [`func::FRAMES`], which the engine completes with a handle to the chunk.
+//!   [`Event::Frame`] names the buffer just written and the page size in it; the engine writes nothing more into
+//!   that buffer until [`Command::FrameShown`] returns it (WB0's rule: never paint faster than frames are shown).
+//! - **Ending:** NEOWEB sends [`func::CANCEL`] before it drops its held [`func::NEXT_EVENT`] (a pending request
+//!   can't be withdrawn); when the engine dies the held request fails with `KErrServerTerminated`.
 //!
 //! Every message is a tag byte and little-endian fields; strings are a `u32` length and UTF-8.
 
@@ -32,6 +34,8 @@ pub mod func {
     pub const NEXT_EVENT: i32 = 2;
     /// Completes with a handle to the frame chunk.
     pub const FRAMES: i32 = 3;
+    /// Completes the session's held NEXT_EVENT with `KErrCancel` (-3).
+    pub const CANCEL: i32 = 4;
 }
 
 /// A rectangle in page pixels.
@@ -102,10 +106,13 @@ pub enum Load {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Load(Load),
-    /// Frame `seq` is in buffer `buffer` (0 or 1); `dirty` changed since the previous frame.
+    /// Frame `seq` is in buffer `buffer` (0 or 1), `width` × `height` pixels (rows [`FrameHeader::stride`] apart);
+    /// `dirty` changed since the previous frame.
     Frame {
         seq: u32,
         buffer: u8,
+        width: u32,
+        height: u32,
         dirty: Rect,
     },
     Url(String),
@@ -124,9 +131,10 @@ pub enum Event {
 pub struct FrameHeader {
     /// [`FrameHeader::MAGIC`] once the engine has set the chunk up.
     pub magic: u32,
+    /// The largest frame the buffers hold.
     pub width: u32,
     pub height: u32,
-    /// Bytes per row (BGRX, 4 bytes a pixel).
+    /// Bytes per row (RGBA8, 4 bytes a pixel).
     pub stride: u32,
     /// Offsets of the two buffers from the chunk's base.
     pub offsets: [u32; 2],
@@ -299,10 +307,18 @@ impl Event {
         let w = W(Vec::new());
         match self {
             Event::Load(l) => w.u8(0).u8(*l as u8),
-            Event::Frame { seq, buffer, dirty } => w
+            Event::Frame {
+                seq,
+                buffer,
+                width,
+                height,
+                dirty,
+            } => w
                 .u8(1)
                 .u32(*seq)
                 .u8(*buffer)
+                .u32(*width)
+                .u32(*height)
                 .i32(dirty.x)
                 .i32(dirty.y)
                 .i32(dirty.w)
@@ -330,6 +346,8 @@ impl Event {
                     b @ (0 | 1) => b,
                     _ => return Err(BadMessage),
                 },
+                width: r.u32()?,
+                height: r.u32()?,
                 dirty: Rect {
                     x: r.i32()?,
                     y: r.i32()?,
@@ -400,6 +418,8 @@ mod tests {
             Event::Frame {
                 seq: 9,
                 buffer: 1,
+                width: 1080,
+                height: 2037,
                 dirty: Rect {
                     x: 0,
                     y: 10,
