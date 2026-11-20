@@ -6849,6 +6849,7 @@ name = "stdtest"
 version = "0.1.0"
 dependencies = [
  "e32",
+ "libc",
 ]
 
 [[package]]
