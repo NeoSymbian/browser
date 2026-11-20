@@ -22,9 +22,9 @@ use e32::sys::TVersion;
 use euclid::Scale;
 use neoweb_proto::{Command, Event, FrameHeader, Load, Rect, TouchKind, func};
 use servo::{
-    DevicePoint, EventLoopWaker, InputEvent, LoadStatus, TouchEvent, TouchEventType, TouchId,
-    TouchPointerType, WebView, WebViewBuilder, WebViewDelegate, WebViewPoint, WheelDelta,
-    WheelEvent, WheelMode,
+    DevicePoint, EventLoopWaker, InputEvent, LoadStatus, RenderingContext, TouchEvent,
+    TouchEventType, TouchId, TouchPointerType, WebView, WebViewBuilder, WebViewDelegate,
+    WebViewPoint, WheelDelta, WheelEvent, WheelMode,
 };
 
 use crate::Waker;
@@ -189,6 +189,40 @@ impl WebViewDelegate for Delegate {
     }
 }
 
+/// Frame timing on the debug log, every 2 s while frames are made.
+#[derive(Default)]
+struct Stats {
+    frames: u32,
+    paint: Duration,
+    copy: Duration,
+    since: Option<std::time::Instant>,
+}
+
+impl Stats {
+    fn add(&mut self, paint: Duration, copy: Duration) {
+        self.since.get_or_insert_with(std::time::Instant::now);
+        self.frames += 1;
+        self.paint += paint;
+        self.copy += copy;
+    }
+
+    fn report(&mut self) {
+        if let Some(t) = self.since
+            && t.elapsed() >= Duration::from_secs(2)
+        {
+            let n = self.frames.max(1);
+            println!(
+                "neowebe: {} frames/{} ms: paint avg {} ms, copy avg {} ms",
+                self.frames,
+                t.elapsed().as_millis(),
+                self.paint.as_millis() / n as u128,
+                self.copy.as_millis() / n as u128
+            );
+            *self = Self::default();
+        }
+    }
+}
+
 /// The two frame buffers: which frame (if any) NEOWEB still holds in each.
 #[derive(Default)]
 struct Buffers {
@@ -291,12 +325,13 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
         shared: shared.clone(),
         frame_ready: Default::default(),
     });
-    let webview = WebViewBuilder::new(&servo, ctx.clone())
-        .hidpi_scale_factor(Scale::new(2.75))
-        .delegate(delegate.clone())
-        .build();
+    // The page is made at the first Load, with its URL and the client's size: a load sent to a WebView whose
+    // browsing context the constellation hasn't made yet is dropped ("LoadUrl for unknown browsing context").
+    let mut webview: Option<WebView> = None;
+    let mut dpr = 2.75f32;
     let mut buffers = Buffers::default();
     let mut pending = false;
+    let mut stats = Stats::default();
     println!("neowebe: serving");
     loop {
         let cmds: Vec<Command> = {
@@ -312,70 +347,74 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
         };
         for cmd in cmds {
             match cmd {
-                Command::Load(u) => match url::Url::parse(&u) {
-                    Ok(u) => webview.load(u),
-                    Err(e) => delegate.post(Event::Crashed(format!("{u}: {e}"))),
+                Command::Load(u) => match (url::Url::parse(&u), &webview) {
+                    (Ok(u), Some(w)) => w.load(u),
+                    (Ok(u), None) => {
+                        ctx.resize(size);
+                        webview = Some(
+                            WebViewBuilder::new(&servo, ctx.clone())
+                                .url(u)
+                                .hidpi_scale_factor(Scale::new(dpr))
+                                .delegate(delegate.clone())
+                                .build(),
+                        );
+                    }
+                    (Err(e), _) => delegate.post(Event::Crashed(format!("{u}: {e}"))),
                 },
-                Command::Reload => webview.reload(),
-                Command::Stop => webview.evaluate_javascript("window.stop()", |_| {}),
-                Command::Back => {
-                    webview.go_back(1);
-                }
-                Command::Forward => {
-                    webview.go_forward(1);
-                }
                 Command::Resize { w, h, dpr_milli } => {
                     let new = PhysicalSize::new(w.clamp(1, MAX_W), h.clamp(1, MAX_H));
-                    if new != size {
-                        size = new;
-                        webview.resize(size);
-                    }
                     if dpr_milli > 0 {
-                        webview.set_hidpi_scale_factor(Scale::new(dpr_milli as f32 / 1000.0));
+                        dpr = dpr_milli as f32 / 1000.0;
                     }
+                    if let Some(wv) = &webview {
+                        if new != size {
+                            wv.resize(new);
+                        }
+                        wv.set_hidpi_scale_factor(Scale::new(dpr));
+                    }
+                    println!("neowebe: resize {}x{} dpr {dpr}", new.width, new.height);
+                    size = new;
                     pending = true;
                 }
                 Command::FrameShown { seq } => buffers.shown(seq),
-                other => input(&webview, other),
+                _ if webview.is_none() => {} // nothing to act on before the first page
+                Command::Reload => webview.as_ref().unwrap().reload(),
+                Command::Stop => webview
+                    .as_ref()
+                    .unwrap()
+                    .evaluate_javascript("window.stop()", |_| {}),
+                Command::Back => {
+                    webview.as_ref().unwrap().go_back(1);
+                }
+                Command::Forward => {
+                    webview.as_ref().unwrap().go_forward(1);
+                }
+                other => input(webview.as_ref().unwrap(), other),
             }
         }
         servo.spin_event_loop();
         if delegate.frame_ready.replace(false) {
             pending = true;
         }
-        if pending && let Some(i) = buffers.free() {
+        if pending
+            && let Some(webview) = &webview
+            && let Some(i) = buffers.free()
+        {
             pending = false;
+            let t0 = std::time::Instant::now();
             webview.paint();
-            if let Some(img) =
-                ctx.read_to_image(servo::DeviceIntRect::from_size(ctx.size2d().to_i32()))
-            {
-                let (w, h) = img.dimensions();
-                // shortcut: read_to_image allocates and copies a whole frame; write into the chunk straight from
-                // SWGL's colour buffer if scrolling is too slow
-                let dst = unsafe { chunk.base().add(header.offsets[i] as usize) };
-                for (row, src) in img
-                    .as_raw()
-                    .chunks_exact(w as usize * 4)
-                    .enumerate()
-                    .take(MAX_H as usize)
-                {
-                    let n = src.len().min(header.stride as usize);
-                    // SAFETY: row < MAX_H and n <= stride: inside buffer i of the chunk
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(
-                            src.as_ptr(),
-                            dst.add(row * header.stride as usize),
-                            n,
-                        )
-                    };
-                }
+            let t1 = std::time::Instant::now();
+            // SAFETY: buffer i is inside the chunk (FrameHeader::layout), MAX_H rows of `stride` bytes, not held
+            let dst = unsafe { chunk.base().add(header.offsets[i] as usize) };
+            if let Some((w, h)) = ctx.copy_frame(dst, header.stride as usize, MAX_W, MAX_H) {
+                stats.add(t1 - t0, t1.elapsed());
                 buffers.seq = buffers.seq.wrapping_add(1);
                 buffers.held[i] = Some(buffers.seq);
                 delegate.post(Event::Frame {
                     seq: buffers.seq,
                     buffer: i as u8,
-                    width: w.min(MAX_W),
-                    height: h.min(MAX_H),
+                    width: w,
+                    height: h,
                     dirty: Rect {
                         x: 0,
                         y: 0,
@@ -385,6 +424,7 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                 });
             }
         }
+        stats.report();
         waker.wait(Duration::from_millis(20));
     }
     println!("neowebe: last client gone, exiting");

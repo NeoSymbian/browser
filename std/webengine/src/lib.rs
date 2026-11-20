@@ -183,14 +183,14 @@ fn parse(args: &[String]) -> Result<Shot, String> {
 pub(crate) fn start_servo(
     size: PhysicalSize<u32>,
     waker: &Waker,
-) -> (servo::Servo, Rc<dyn RenderingContext>) {
+) -> (servo::Servo, Rc<swgl::SwglRenderingContext>) {
     // the TLS provider: only the first call installs it
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let mut prefs = Preferences::default();
     for (name, value) in INTERPRETER_PREFS {
         prefs.set_value(name, PrefValue::Bool(*value));
     }
-    let ctx: Rc<dyn RenderingContext> = Rc::new(swgl::SwglRenderingContext::new(size));
+    let ctx = Rc::new(swgl::SwglRenderingContext::new(size));
     let _ = ctx.make_current();
     // Servo's storage (and its caches) in the engine's private folder on C:, never a temporary folder
     let config_dir = std::path::PathBuf::from(CONFIG_DIR);

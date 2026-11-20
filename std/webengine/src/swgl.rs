@@ -36,6 +36,46 @@ impl SwglRenderingContext {
     }
 }
 
+impl SwglRenderingContext {
+    /// The painted frame into `dst` as RGBA8 rows top-down, `dst_stride` bytes apart, at most `max_w` × `max_h`:
+    /// one pass from SWGL's colour buffer (BGRA, rows bottom-up), instead of read_to_image's read, flip and copy.
+    /// Returns the size written.
+    pub fn copy_frame(
+        &self,
+        dst: *mut u8,
+        dst_stride: usize,
+        max_w: u32,
+        max_h: u32,
+    ) -> Option<(u32, u32)> {
+        let (buf, w, h, stride) = self.context.get_color_buffer(0, true);
+        if buf.is_null() || w <= 0 || h <= 0 {
+            return None;
+        }
+        let (w, h) = ((w as u32).min(max_w), (h as u32).min(max_h));
+        for row in 0..h as usize {
+            // SAFETY: SWGL's buffer holds h rows of `stride` bytes; dst holds max_h rows of dst_stride >= 4 * w
+            let (src, out) = unsafe {
+                (
+                    std::slice::from_raw_parts(
+                        (buf as *const u8).add((h as usize - 1 - row) * stride as usize)
+                            as *const u32,
+                        w as usize,
+                    ),
+                    std::slice::from_raw_parts_mut(
+                        dst.add(row * dst_stride) as *mut u32,
+                        w as usize,
+                    ),
+                )
+            };
+            for (o, &v) in out.iter_mut().zip(src) {
+                // BGRA in memory (little-endian 0xAARRGGBB) to RGBA (0xAABBGGRR), opaque
+                *o = 0xff00_0000 | (v & 0x0000_ff00) | ((v >> 16) & 0xff) | ((v & 0xff) << 16);
+            }
+        }
+        Some((w, h))
+    }
+}
+
 impl RenderingContext for SwglRenderingContext {
     fn read_to_image(&self, rect: DeviceIntRect) -> Option<RgbaImage> {
         // As Servo's own contexts do: read the default framebuffer, then flip it (GL rows go bottom-up).
