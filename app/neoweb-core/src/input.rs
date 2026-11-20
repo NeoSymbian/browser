@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 /// Where typed text goes: an address as typed (with https:// added), else a DuckDuckGo search.
 pub fn parse(text: &str) -> String {
     let t = text.trim();
-    if ["https://", "http://", "neo:"]
+    if ["https://", "http://", "file:", "neo:"]
         .iter()
         .any(|s| t.starts_with(s))
     {
@@ -111,6 +111,7 @@ mod tests {
             "https://duckduckgo.com/?q=c%2B%2B+%26+rust"
         );
         assert_eq!(parse("neo:start"), "neo:start");
+        assert_eq!(parse("file:///c:/pages/a.html"), "file:///c:/pages/a.html");
     }
 
     #[test]

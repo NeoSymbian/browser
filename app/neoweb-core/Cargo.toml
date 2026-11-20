@@ -5,3 +5,6 @@ description = "NEOWEB's logic (no_std): page history per tab, the chrome's state
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+
+[dependencies]
+neoweb-proto = { path = "../neoweb-proto" }

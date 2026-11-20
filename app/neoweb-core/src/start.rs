@@ -62,22 +62,31 @@ pub const SHORTCUTS: [Shortcut; 8] = [
     },
 ];
 
-/// Recently visited as the start page lists it: the address without its scheme, newest first, at most 3.
-pub fn recent<'a>(visited: impl DoubleEndedIterator<Item = &'a str>) -> alloc::vec::Vec<&'a str> {
+/// Original addresses for the recent rows, so selecting one preserves the scheme and path.
+pub fn recent_urls<'a>(
+    visited: impl DoubleEndedIterator<Item = &'a str>,
+) -> alloc::vec::Vec<&'a str> {
     let mut out: alloc::vec::Vec<&str> = alloc::vec::Vec::new();
     for url in visited.rev() {
-        let shown = url
-            .trim_start_matches("https://")
-            .trim_start_matches("http://")
-            .trim_end_matches('/');
-        if url != crate::START && !out.contains(&shown) {
-            out.push(shown);
+        if url != crate::START && !out.iter().any(|old| recent_label(old) == recent_label(url)) {
+            out.push(url);
         }
         if out.len() == 3 {
             break;
         }
     }
     out
+}
+
+/// Recently visited as the start page lists it: the address without its web scheme, newest first, at most 3.
+pub fn recent<'a>(visited: impl DoubleEndedIterator<Item = &'a str>) -> alloc::vec::Vec<&'a str> {
+    recent_urls(visited).into_iter().map(recent_label).collect()
+}
+
+fn recent_label(url: &str) -> &str {
+    url.trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_end_matches('/')
 }
 
 #[cfg(test)]
@@ -95,6 +104,10 @@ mod tests {
         assert_eq!(
             super::recent(v.iter().copied()),
             ["d.org", "c.org", "a.org"]
+        );
+        assert_eq!(
+            super::recent_urls(v.iter().copied()),
+            ["https://d.org", "http://c.org", "https://a.org/"]
         );
     }
 }

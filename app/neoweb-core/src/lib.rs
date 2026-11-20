@@ -2,10 +2,11 @@
 //! NEOWEB's logic, free of Slint and Symbian so it is tested on the host (docs `browser-ui.md`).
 //!
 //! - [`Tab`]: one opened page's history (← →, `can_back`);
+//! - [`LiveTab`]: the tab and chrome state reported by the engine process;
 //! - [`Header`] / [`count_label`]: what the address bar and the footer show (`br2-footer-states`);
 //! - [`start`]: the start page's shortcuts (`br2-start`);
 //! - [`input`]: the address bar's text and suggestions (`br2-address`); [`chrome`]: hiding on scroll, loading;
-//! - [`Engine`] / [`FakeEngine`]: the page engine; the stand-in serves the boards' pages until Servo (WB4).
+//! - [`Engine`] / [`FakeEngine`]: the stand-in used by the host tests.
 #![no_std]
 
 extern crate alloc;
@@ -16,9 +17,46 @@ pub mod start;
 
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
+use neoweb_proto::Event;
 
 /// The start page's address: the first entry of a new tab, so ← from a page comes back to it.
 pub const START: &str = "neo:start";
+
+/// The current engine page. Servo owns its history and tells the chrome which navigation is possible.
+#[derive(Debug, Default)]
+pub struct LiveTab {
+    pub url: String,
+    pub title: String,
+    pub back: bool,
+    pub forward: bool,
+    pub loading: chrome::Loading,
+    pub crashed: bool,
+}
+
+impl LiveTab {
+    /// Apply a protocol event to the tab. Frame pixels are handled by the UI process.
+    pub fn apply(&mut self, event: Event) {
+        if self.crashed {
+            return;
+        }
+        match event {
+            Event::Load(phase) => self.loading.update(phase),
+            Event::Title(title) => self.title = title,
+            Event::Url(url) => self.url = url,
+            Event::History { back, forward } => {
+                self.back = back;
+                self.forward = forward;
+            }
+            Event::Crashed(_) => {
+                self.crashed = true;
+                self.loading.stop();
+                self.back = false;
+                self.forward = false;
+            }
+            Event::Frame { .. } => {}
+        }
+    }
+}
 
 /// One opened page: its history and where in it the page is.
 #[derive(Debug, Clone)]
@@ -73,13 +111,15 @@ pub enum Security {
     Secure = 1,
     /// http: g-info + "Not secure"
     NotSecure = 2,
+    /// a local file: g-info with the file address
+    Local = 3,
 }
 
 /// What the address bar shows for a page.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Header {
     pub security: Security,
-    /// the host only: the path is hidden (B01)
+    /// The web host (B01), or the address of a local file.
     pub domain: String,
 }
 
@@ -89,6 +129,11 @@ impl Header {
             (Security::Secure, r)
         } else if let Some(r) = url.strip_prefix("http://") {
             (Security::NotSecure, r)
+        } else if url.starts_with("file:") {
+            return Self {
+                security: Security::Local,
+                domain: url.into(),
+            };
         } else {
             return Self {
                 security: Security::None,
@@ -120,7 +165,7 @@ pub struct Loaded {
     pub page: FakePage,
 }
 
-/// The page engine behind NEOWEB's chrome: [`FakeEngine`] now, Servo from WB4 (browser-ui.md "Engine").
+/// A stand-in page engine for the host tests (browser-ui.md "Engine").
 pub trait Engine {
     fn load(&mut self, url: &str) -> Loaded;
 }
@@ -157,6 +202,53 @@ impl Engine for FakeEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use neoweb_proto::Load;
+
+    #[test]
+    fn live_load_follows_engine_milestones() {
+        let mut tab = LiveTab::default();
+        tab.apply(Event::Load(Load::Started));
+        let start = tab.loading.progress();
+        assert!(tab.loading.active() && start > 0.0);
+        tab.apply(Event::Load(Load::HeadParsed));
+        assert!(
+            tab.loading.active() && start < tab.loading.progress() && tab.loading.progress() < 1.0
+        );
+        tab.apply(Event::Load(Load::Complete));
+        assert!(!tab.loading.active());
+        assert_eq!(tab.loading.progress(), 1.0);
+    }
+
+    #[test]
+    fn live_tab_uses_reported_title_url_and_history() {
+        let mut tab = LiveTab::default();
+        tab.apply(Event::Url("https://example.org/redirect".into()));
+        tab.apply(Event::Url("https://example.net/final".into()));
+        tab.apply(Event::Title("A page · էջ".into()));
+        assert_eq!(tab.title, "A page · էջ");
+        assert_eq!(tab.url, "https://example.net/final");
+        assert_eq!(Header::of(&tab.url).domain, "example.net");
+        for (back, forward) in [(true, false), (false, true), (false, false)] {
+            tab.apply(Event::History { back, forward });
+            assert_eq!((tab.back, tab.forward), (back, forward));
+        }
+    }
+
+    #[test]
+    fn live_crash_keeps_the_reload_url_and_ends_loading() {
+        let mut tab = LiveTab::default();
+        tab.apply(Event::Url("file:///c:/pages/a.html".into()));
+        tab.apply(Event::Load(Load::Started));
+        tab.apply(Event::History {
+            back: true,
+            forward: true,
+        });
+        tab.apply(Event::Crashed("engine terminated".into()));
+        tab.apply(Event::Load(Load::HeadParsed));
+        assert!(tab.crashed && !tab.loading.active() && !tab.back && !tab.forward);
+        assert_eq!(tab.url, "file:///c:/pages/a.html");
+        assert_eq!(Header::of(&tab.url).security, Security::Local);
+    }
 
     #[test]
     fn history_walks_back_and_forward() {
