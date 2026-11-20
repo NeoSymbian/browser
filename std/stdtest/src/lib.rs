@@ -499,6 +499,7 @@ fn main() -> i32 {
         ("smp_stdio", smp::stdio_race),
         ("smp_shared_fd", smp::shared_fd_race),
         ("smp_sem_timeout", smp::sem_timeout_race),
+        ("smp_cross_thread_fd", smp::cross_thread_fd),
         // last: it panics (aborts) where loopback sockets fail
         ("net_loopback", net_loopback),
     ];
@@ -508,7 +509,12 @@ fn main() -> i32 {
         std::env::consts::OS,
         std::env::consts::FAMILY
     );
-    for (name, f) in checks {
+    // `stdtest NAME...` runs only the named checks
+    let only: Vec<String> = std::env::args().skip(1).collect();
+    for (name, f) in checks
+        .iter()
+        .filter(|(n, _)| only.is_empty() || only.iter().any(|o| o == n))
+    {
         println!("std {name} ...");
         match f() {
             Pass(d) => {

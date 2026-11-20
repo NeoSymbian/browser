@@ -6,6 +6,7 @@
 use crate::Outcome::{self, Failed, Pass};
 use std::cell::UnsafeCell;
 use std::fs;
+use std::io::Read;
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::AsRawFd;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -438,5 +439,67 @@ pub fn sem_timeout_race() -> Outcome {
     );
     Pass(format!(
         "{POSTS} posts: {got} taken by 4 timed waiters, {drained} left over"
+    ))
+}
+
+/// The browser's pattern (aws-lc, hyper): one fd opened once (/dev/urandom) and read by many threads while other
+/// threads open and close sockets and files. Every read must succeed; an EBADF here aborted NEOWEBE.
+pub fn cross_thread_fd() -> Outcome {
+    let urandom = match fs::File::open("/dev/urandom") {
+        Ok(f) => f,
+        Err(e) => return Failed(format!("open /dev/urandom: {e}")),
+    };
+    let _ = fs::create_dir_all(DIR);
+    let done = AtomicBool::new(false);
+    let (bad, reads, churn) = (
+        Mutex::new(Vec::new()),
+        AtomicUsize::new(0),
+        AtomicUsize::new(0),
+    );
+    thread::scope(|s| {
+        for t in 0..3 {
+            let (done, bad, churn) = (&done, &bad, &churn);
+            s.spawn(move || {
+                let path = format!("{DIR}/churn{t}.txt");
+                while !done.load(Ordering::Relaxed) {
+                    if let Err(e) = std::net::UdpSocket::bind("0.0.0.0:0").map(drop) {
+                        bad.lock().unwrap().push(format!("socket: {e}"));
+                    }
+                    if let Err(e) = fs::write(&path, b"x") {
+                        bad.lock().unwrap().push(format!("file: {e}"));
+                    }
+                    churn.fetch_add(1, Ordering::Relaxed);
+                }
+            });
+        }
+        thread::scope(|r| {
+            for _ in 0..5 {
+                let (urandom, bad, reads) = (&urandom, &bad, &reads);
+                r.spawn(move || {
+                    let mut buf = [0u8; 32];
+                    for _ in 0..2000 {
+                        match (&*urandom).read(&mut buf) {
+                            Ok(32) => {}
+                            other => bad.lock().unwrap().push(format!("read: {other:?}")),
+                        }
+                        reads.fetch_add(1, Ordering::Relaxed);
+                    }
+                });
+            }
+        });
+        done.store(true, Ordering::Relaxed);
+    });
+    let _ = fs::remove_dir_all(DIR);
+    let bad = bad.into_inner().unwrap();
+    check!(
+        bad.is_empty(),
+        "{} failures, first {:?}",
+        bad.len(),
+        bad.first()
+    );
+    Pass(format!(
+        "{} reads of one /dev/urandom fd on 5 threads, {} socket+file open/close meanwhile",
+        reads.into_inner(),
+        churn.into_inner()
     ))
 }
