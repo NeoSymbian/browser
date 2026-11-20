@@ -99,13 +99,15 @@ struct Shot {
     size: PhysicalSize<u32>,
     dpr: f32,
     timeout: Duration,
+    /// Also print the PNG on the debug log as base64 lines (`neowebe-png N DATA`), for emulators without file access.
+    dump: bool,
 }
 
 fn parse(args: &[String]) -> Result<Shot, String> {
     let mut it = args.iter();
     let (Some(flag), Some(url), Some(out)) = (it.next(), it.next(), it.next()) else {
         return Err(
-            "usage: neowebe --shot URL OUT.png [--size WxH] [--dpr D] [--timeout SECS]".into(),
+            "usage: neowebe --shot URL OUT.png [--size WxH] [--dpr D] [--timeout SECS] [--dump 1]".into(),
         );
     };
     if flag != "--shot" {
@@ -117,6 +119,7 @@ fn parse(args: &[String]) -> Result<Shot, String> {
         size: PhysicalSize::new(1080, 2037),
         dpr: 2.75,
         timeout: Duration::from_secs(120),
+        dump: false,
     };
     while let Some(flag) = it.next() {
         let value = it.next().ok_or(format!("{flag}: no value"))?;
@@ -129,6 +132,7 @@ fn parse(args: &[String]) -> Result<Shot, String> {
                 );
             }
             "--dpr" => shot.dpr = value.parse().map_err(|_| "--dpr D")?,
+            "--dump" => shot.dump = value == "1",
             "--timeout" => {
                 shot.timeout = Duration::from_secs(value.parse().map_err(|_| "--timeout SECS")?)
             }
@@ -169,23 +173,22 @@ fn shot(s: Shot) -> Result<String, String> {
         .delegate(state.clone())
         .build();
     let mut frames = 0u32;
-    // after the load completes, keep painting for a moment: images and fonts arrive in later frames
-    let mut settled: Option<Instant> = None;
+    // after the load completes, keep painting until no new frame came for a while: images, fonts and script
+    // changes arrive in later frames (slowly, in an emulator)
+    let mut last_frame = Instant::now();
     loop {
         servo.spin_event_loop();
         if state.frame_ready.replace(false) {
             webview.paint();
             ctx.present();
             frames += 1;
+            last_frame = Instant::now();
         }
         if state.crashed.get() {
             return Err("Servo crashed".into());
         }
-        if state.complete.get() && frames > 0 {
-            let t = *settled.get_or_insert_with(Instant::now);
-            if t.elapsed() > Duration::from_millis(1500) {
-                break;
-            }
+        if state.complete.get() && frames > 0 && last_frame.elapsed() > Duration::from_secs(2) {
+            break;
         }
         if started.elapsed() > s.timeout {
             return Err(format!("timeout after {:?}, {frames} frames", s.timeout));
@@ -197,7 +200,27 @@ fn shot(s: Shot) -> Result<String, String> {
         .read_to_image(servo::DeviceIntRect::from_size(ctx.size2d().to_i32()))
         .ok_or("no pixels")?;
     image.save(&s.out).map_err(|e| format!("{}: {e}", s.out))?;
+    if s.dump {
+        let png = std::fs::read(&s.out).map_err(|e| format!("{}: {e}", s.out))?;
+        // 150 characters a line: the debug port takes under 256 bytes a line
+        for (n, chunk) in base64(&png).as_bytes().chunks(150).enumerate() {
+            println!("neowebe-png {n} {}", std::str::from_utf8(chunk).unwrap());
+        }
+    }
     Ok(format!("{ms} ms, {frames} frames"))
+}
+
+/// Standard base64 with padding.
+fn base64(data: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for c in data.chunks(3) {
+        let n = (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
+        for i in 0..4 {
+            out.push(if i <= c.len() { A[(n >> (18 - 6 * i)) as usize & 63] as char } else { '=' });
+        }
+    }
+    out
 }
 
 fn main() -> i32 {
