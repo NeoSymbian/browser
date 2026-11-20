@@ -35,6 +35,9 @@ const INTERPRETER_PREFS: &[(&str, bool)] = &[
     ("network_use_webpki_roots", true),
 ];
 
+/// The engine's private folder (its SID, 0xE0007008): profile, storage, caches.
+const CONFIG_DIR: &str = "C:/Private/e0007008/profile";
+
 /// Wakes the embedder loop when Servo has work for it.
 #[derive(Clone, Default)]
 struct Waker(Arc<(Mutex<bool>, Condvar)>);
@@ -147,7 +150,15 @@ fn shot(s: Shot) -> Result<String, String> {
     let _ = ctx.make_current();
     let waker = Waker::default();
     let started = Instant::now();
+    // Servo's storage (and its caches) in the engine's private folder on C:, never a temporary folder
+    let config_dir = std::path::PathBuf::from(CONFIG_DIR);
+    let _ = std::fs::create_dir_all(&config_dir);
+    let opts = servo::Opts {
+        config_dir: Some(config_dir),
+        ..Default::default()
+    };
     let servo = ServoBuilder::default()
+        .opts(opts)
         .preferences(prefs)
         .event_loop_waker(Box::new(waker.clone()))
         .build();
