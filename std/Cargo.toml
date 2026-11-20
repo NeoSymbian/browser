@@ -23,6 +23,7 @@ memmap2 = { git = "https://github.com/NeoSymbian/memmap2", branch = "neosymbian"
 tempfile = { git = "https://github.com/NeoSymbian/tempfile", branch = "neosymbian" }
 parking_lot_core = { git = "https://github.com/NeoSymbian/parking_lot", branch = "neosymbian" }
 libloading = { git = "https://github.com/NeoSymbian/libloading", branch = "neosymbian" }
+inventory = { git = "https://github.com/NeoSymbian/inventory", branch = "neosymbian" }
 # webrender: every crate from the one fork (Servo's rev d399b904 + the FreeType cfg), or two copies would link
 webrender = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
 webrender_api = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }

@@ -2841,8 +2841,7 @@ dependencies = [
 [[package]]
 name = "inventory"
 version = "0.3.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6928282826c822ad91bf1c9a1cb90a30ba1c26770749929b4656cd6be829cd7c"
+source = "git+https://github.com/NeoSymbian/inventory?branch=neosymbian#15cb54ca030d02e9757a0f3ec3ba1e4b661377b4"
 dependencies = [
  "rustversion",
 ]
