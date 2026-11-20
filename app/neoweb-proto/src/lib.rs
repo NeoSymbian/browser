@@ -4,7 +4,9 @@
 //! - **Transport:** NEOWEBE runs the Symbian server [`SERVER_NAME`]. NEOWEB sends each [`Command`] with
 //!   [`func::COMMAND`] (argument 0: the encoded command) and keeps one [`func::NEXT_EVENT`] outstanding (argument 0:
 //!   a buffer of [`EVENT_MAX`] bytes); the engine completes it with the encoded [`Event`]'s length.
-//! - **Frames:** the global chunk [`FRAME_CHUNK`] holds a [`FrameHeader`] and two BGRX buffers of the page area.
+//! - **Frames:** an unnamed global chunk holds a [`FrameHeader`] and two BGRX buffers of the page area. NEOWEB asks
+//!   for it with [`func::FRAMES`], which the engine completes with a handle to the chunk (again after a resize: the
+//!   header's size tells which chunk a frame is in).
 //!   [`Event::Frame`] names the buffer just written; the engine writes nothing more until
 //!   [`Command::FrameShown`] returns that buffer (WB0's rule: never paint faster than frames are shown).
 //!
@@ -21,8 +23,6 @@ use alloc::vec::Vec;
 pub const SERVER_NAME: &str = "NeoWebEngine";
 /// The protocol version (major, minor, build), checked at connect.
 pub const VERSION: (u8, u8, u16) = (1, 0, 0);
-/// The global chunk with the frames.
-pub const FRAME_CHUNK: &str = "NeoWebFrames";
 /// Room for one encoded event (URLs and titles are cut to fit).
 pub const EVENT_MAX: usize = 4096;
 
@@ -30,6 +30,8 @@ pub const EVENT_MAX: usize = 4096;
 pub mod func {
     pub const COMMAND: i32 = 1;
     pub const NEXT_EVENT: i32 = 2;
+    /// Completes with a handle to the frame chunk.
+    pub const FRAMES: i32 = 3;
 }
 
 /// A rectangle in page pixels.
