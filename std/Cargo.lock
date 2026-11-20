@@ -1717,7 +1717,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3404,7 +3404,7 @@ dependencies = [
 [[package]]
 name = "mozjs"
 version = "0.26.13"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=8df26c8f6649d21bad8612ba985a02b49e85e9bd#8df26c8f6649d21bad8612ba985a02b49e85e9bd"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
 dependencies = [
  "bindgen",
  "cc",
@@ -3418,7 +3418,7 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_collections"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=8df26c8f6649d21bad8612ba985a02b49e85e9bd#8df26c8f6649d21bad8612ba985a02b49e85e9bd"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
 dependencies = [
  "displaydoc",
  "icu_casemap",
@@ -3431,7 +3431,7 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_normalizer"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=8df26c8f6649d21bad8612ba985a02b49e85e9bd#8df26c8f6649d21bad8612ba985a02b49e85e9bd"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
 dependencies = [
  "displaydoc",
  "icu_properties",
@@ -3448,12 +3448,12 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_normalizer_data"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=8df26c8f6649d21bad8612ba985a02b49e85e9bd#8df26c8f6649d21bad8612ba985a02b49e85e9bd"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
 
 [[package]]
 name = "mozjs_normalizer_glue"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=8df26c8f6649d21bad8612ba985a02b49e85e9bd#8df26c8f6649d21bad8612ba985a02b49e85e9bd"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
 dependencies = [
  "cbindgen",
  "encoding_rs",
@@ -3465,7 +3465,7 @@ dependencies = [
 [[package]]
 name = "mozjs_sys"
 version = "153.6.0-1"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=8df26c8f6649d21bad8612ba985a02b49e85e9bd#8df26c8f6649d21bad8612ba985a02b49e85e9bd"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
 dependencies = [
  "bindgen",
  "cc",
@@ -3482,7 +3482,7 @@ dependencies = [
 [[package]]
 name = "mozjs_utf16_iter"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=8df26c8f6649d21bad8612ba985a02b49e85e9bd#8df26c8f6649d21bad8612ba985a02b49e85e9bd"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
 dependencies = [
  "mozjs_icu_collections",
 ]
@@ -3490,7 +3490,7 @@ dependencies = [
 [[package]]
 name = "mozjs_utf8_iter"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=8df26c8f6649d21bad8612ba985a02b49e85e9bd#8df26c8f6649d21bad8612ba985a02b49e85e9bd"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
 dependencies = [
  "mozjs_icu_collections",
 ]
@@ -4886,7 +4886,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4943,7 +4943,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7205,7 +7205,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -8221,7 +8221,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

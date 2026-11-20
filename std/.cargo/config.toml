@@ -16,6 +16,9 @@ CC_armv7a_symbian_eabi = "armv7-symbian-gcc"
 CXX_armv7a_symbian_eabi = "armv7-symbian-g++"
 AR_armv7a_symbian_eabi = "armv7-symbian-ar"
 LIBZ_SYS_STATIC = "1"
+# aws-lc: seed from the OS (P.I.P.S.'s /dev/urandom = the kernel's secure RNG), not CPU-jitter sampling (its
+# health test aborts here, and it is slow)
+AWS_LC_SYS_NO_JITTER_ENTROPY = "1"
 # sqlite: no mmap (P.I.P.S.'s is unusable), no extension loading
 LIBSQLITE3_FLAGS = "-DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_OMIT_LOAD_EXTENSION"
 
