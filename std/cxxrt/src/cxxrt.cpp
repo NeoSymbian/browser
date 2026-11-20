@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/socket.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -209,8 +210,16 @@ double cxxrt_log2(double x) __asm__("log2");
 double cxxrt_log2(double x) { return log(x) * 1.4426950408889634; }
 float cxxrt_log2f(float x) __asm__("log2f");
 float cxxrt_log2f(float x) { return float(log(double(x)) * 1.4426950408889634); }
-// no socketpair in P.I.P.S. (tokio's signal driver asks for one; nothing here delivers signals)
-int socketpair(int, int, int, int*) { errno = EOPNOTSUPP; return -1; }
+// no socketpair in P.I.P.S.: a pipe, sv[1] -> sv[0], for UnixStream::pair's one-way users (tokio's signal driver,
+// which every runtime with I/O builds). shortcut: one direction only (writing sv[0] fails), upgrade with a socketpair
+// in ossrv when a two-way user appears
+int socketpair(int domain, int, int, int* sv) {
+	if (domain != AF_UNIX) {
+		errno = EOPNOTSUPP;
+		return -1;
+	}
+	return pipe(sv);
+}
 int tcgetattr(int, struct termios*) { errno = ENOTTY; return -1; }
 int tcsetattr(int, int, const struct termios*) { errno = ENOTTY; return -1; }
 }
