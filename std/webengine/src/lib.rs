@@ -121,6 +121,9 @@ struct Shot {
     timeout: Duration,
     /// Also print the PNG on the debug log as base64 lines (`neowebe-png NAME N DATA`), for emulators without file access.
     dump: bool,
+    /// How long without a new frame counts as finished (WebRender builds frames on its own thread: slow emulators
+    /// need more).
+    settle: Duration,
     /// Servo's log on the debug log, up to this level.
     log: log::LevelFilter,
 }
@@ -129,7 +132,7 @@ fn parse(args: &[String]) -> Result<Shot, String> {
     let mut it = args.iter();
     let (Some(flag), Some(url), Some(out)) = (it.next(), it.next(), it.next()) else {
         return Err(
-            "usage: neowebe --shot URL OUT.png [--size WxH] [--dpr D] [--timeout SECS] [--dump 1] [--log LEVEL]".into(),
+            "usage: neowebe --shot URL OUT.png [--size WxH] [--dpr D] [--timeout SECS] [--dump 1] [--log LEVEL] [--settle SECS]".into(),
         );
     };
     if flag != "--shot" {
@@ -142,6 +145,7 @@ fn parse(args: &[String]) -> Result<Shot, String> {
         dpr: 2.75,
         timeout: Duration::from_secs(120),
         dump: false,
+        settle: Duration::from_secs(3),
         log: log::LevelFilter::Warn,
     };
     while let Some(flag) = it.next() {
@@ -156,6 +160,7 @@ fn parse(args: &[String]) -> Result<Shot, String> {
             }
             "--dpr" => shot.dpr = value.parse().map_err(|_| "--dpr D")?,
             "--dump" => shot.dump = value == "1",
+            "--settle" => shot.settle = Duration::from_secs(value.parse().map_err(|_| "--settle SECS")?),
             "--log" => shot.log = value.parse().map_err(|_| "--log off|error|warn|info|debug|trace")?,
             "--timeout" => {
                 shot.timeout = Duration::from_secs(value.parse().map_err(|_| "--timeout SECS")?)
@@ -211,7 +216,7 @@ fn shot(s: Shot) -> Result<String, String> {
         if state.crashed.get() {
             return Err("Servo crashed".into());
         }
-        if state.complete.get() && frames > 0 && last_frame.elapsed() > Duration::from_secs(2) {
+        if state.complete.get() && frames > 0 && last_frame.elapsed() > s.settle {
             break;
         }
         if started.elapsed() > s.timeout {
