@@ -38,6 +38,26 @@ const INTERPRETER_PREFS: &[(&str, bool)] = &[
 /// The engine's private folder (its SID, 0xE0007008): profile, storage, caches.
 const CONFIG_DIR: &str = "C:/Private/e0007008/profile";
 
+/// Servo's log (the `log` crate) on the debug log: warnings and errors, or everything to `level` when NEOWEBE is
+/// started with `--log debug|info|trace`.
+struct DebugLog;
+
+impl log::Log for DebugLog {
+    fn enabled(&self, m: &log::Metadata) -> bool {
+        m.level() <= log::max_level()
+    }
+
+    fn log(&self, r: &log::Record) {
+        if self.enabled(r.metadata()) {
+            let line = format!("neowebe-log {} {}: {}", r.level(), r.target(), r.args());
+            // the debug port takes under 256 bytes a line
+            println!("{}", &line[..line.floor_char_boundary(240)]);
+        }
+    }
+
+    fn flush(&self) {}
+}
+
 /// Wakes the embedder loop when Servo has work for it.
 #[derive(Clone, Default)]
 struct Waker(Arc<(Mutex<bool>, Condvar)>);
@@ -101,13 +121,15 @@ struct Shot {
     timeout: Duration,
     /// Also print the PNG on the debug log as base64 lines (`neowebe-png N DATA`), for emulators without file access.
     dump: bool,
+    /// Servo's log on the debug log, up to this level.
+    log: log::LevelFilter,
 }
 
 fn parse(args: &[String]) -> Result<Shot, String> {
     let mut it = args.iter();
     let (Some(flag), Some(url), Some(out)) = (it.next(), it.next(), it.next()) else {
         return Err(
-            "usage: neowebe --shot URL OUT.png [--size WxH] [--dpr D] [--timeout SECS] [--dump 1]".into(),
+            "usage: neowebe --shot URL OUT.png [--size WxH] [--dpr D] [--timeout SECS] [--dump 1] [--log LEVEL]".into(),
         );
     };
     if flag != "--shot" {
@@ -120,6 +142,7 @@ fn parse(args: &[String]) -> Result<Shot, String> {
         dpr: 2.75,
         timeout: Duration::from_secs(120),
         dump: false,
+        log: log::LevelFilter::Warn,
     };
     while let Some(flag) = it.next() {
         let value = it.next().ok_or(format!("{flag}: no value"))?;
@@ -133,6 +156,7 @@ fn parse(args: &[String]) -> Result<Shot, String> {
             }
             "--dpr" => shot.dpr = value.parse().map_err(|_| "--dpr D")?,
             "--dump" => shot.dump = value == "1",
+            "--log" => shot.log = value.parse().map_err(|_| "--log off|error|warn|info|debug|trace")?,
             "--timeout" => {
                 shot.timeout = Duration::from_secs(value.parse().map_err(|_| "--timeout SECS")?)
             }
@@ -232,6 +256,8 @@ fn main() -> i32 {
             return 64;
         }
     };
+    let _ = log::set_logger(&DebugLog);
+    log::set_max_level(s.log);
     let what = format!("{} -> {}", s.url, s.out);
     match shot(s) {
         Ok(stats) => {

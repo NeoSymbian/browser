@@ -19,6 +19,7 @@ servo = { path = "../../../../servo-fork/components/servo", default-features = f
 ipc-channel = { version = "0.23", features = ["force-inprocess"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "logging", "std", "tls12"] }
 url = "2.5"
+log = "0.4"
 euclid = "0.22"
 dpi = "0.1"
 image = { version = "0.25", default-features = false, features = ["png"] }

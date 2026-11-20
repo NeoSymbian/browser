@@ -8105,6 +8105,7 @@ dependencies = [
  "glow",
  "image",
  "ipc-channel",
+ "log",
  "rustls",
  "servo",
  "surfman",
