@@ -14,7 +14,7 @@ crate-type = ["staticlib"]
 e32.workspace = true
 cxxrt = { path = "../cxxrt" }
 # the NeoSymbian/servo fork (branch neosymbian, from v0.8.0): no default features (no JIT, multiprocess, devtools)
-servo = { path = "../../../../servo-fork/components/servo", default-features = false, features = ["bundled", "subtlecrypto"] }
+servo = { path = "../../../../fork/servo/components/servo", default-features = false, features = ["bundled", "subtlecrypto"] }
 # one process, no IPC sockets: ipc-channel's in-process channels (features unify across the graph)
 ipc-channel = { version = "0.23", features = ["force-inprocess"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "logging", "std", "tls12"] }
