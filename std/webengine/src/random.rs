@@ -19,7 +19,10 @@ fn fill(dest: &mut [u8]) -> Result<(), i32> {
 /// # Safety
 /// getrandom passes a writable buffer of `len` bytes.
 #[unsafe(no_mangle)]
-unsafe extern "Rust" fn __getrandom_v03_custom(dest: *mut u8, len: usize) -> Result<(), getrandom03::Error> {
+unsafe extern "Rust" fn __getrandom_v03_custom(
+    dest: *mut u8,
+    len: usize,
+) -> Result<(), getrandom03::Error> {
     // SAFETY: as documented above.
     let dest = unsafe { core::slice::from_raw_parts_mut(dest, len) };
     // getrandom's "unexpected" error: the RNG not seeded yet (KErrNotReady), or any other kernel error
@@ -29,11 +32,13 @@ unsafe extern "Rust" fn __getrandom_v03_custom(dest: *mut u8, len: usize) -> Res
 fn getrandom02(dest: &mut [u8]) -> Result<(), getrandom02::Error> {
     fill(dest).map_err(|e| {
         // a custom error code: getrandom 0.2 keeps it for Display
-        getrandom02::Error::from(core::num::NonZeroU32::new(getrandom02::Error::CUSTOM_START + e.unsigned_abs()).unwrap())
+        getrandom02::Error::from(
+            core::num::NonZeroU32::new(getrandom02::Error::CUSTOM_START + e.unsigned_abs())
+                .unwrap(),
+        )
     })
 }
 getrandom02::register_custom_getrandom!(getrandom02);
-
 
 /// aws-lc probes the ARM CPU's features only on Linux and the BSDs; here it starts with none (its portable C code,
 /// no NEON assembly). shortcut: no NEON crypto, upgrade by setting OPENSSL_armcap_P from the HWCAP we know (WB4d).

@@ -12,6 +12,7 @@ crate-type = ["staticlib"]
 
 [dependencies]
 e32.workspace = true
+neoweb-proto = { path = "../../app/neoweb-proto" }
 cxxrt = { path = "../cxxrt" }
 # the NeoSymbian/servo fork (branch neosymbian, from v0.8.0): no default features (no JIT, multiprocess, devtools)
 servo = { path = "../../../../fork/servo/components/servo", default-features = false, features = ["bundled", "subtlecrypto"] }

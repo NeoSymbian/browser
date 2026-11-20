@@ -3,8 +3,10 @@
 //!
 //! `neowebe --shot URL OUT.png [--size WxH] [--dpr D] [--timeout SECS]` loads one page headless, waits until it is
 //! loaded and painted, writes the frame as a PNG and prints the time, frames and memory (WB4b).
+//! `neowebe --serve [--log LEVEL]` is the engine process behind NEOWEB (WB4c, `serve.rs`).
 
 mod random;
+mod serve;
 mod swgl;
 
 use std::cell::Cell;
@@ -40,7 +42,7 @@ const CONFIG_DIR: &str = "C:/Private/e0007008/profile";
 
 /// Servo's log (the `log` crate) on the debug log: warnings and errors, or everything to `level` when NEOWEBE is
 /// started with `--log debug|info|trace`.
-struct DebugLog;
+pub(crate) struct DebugLog;
 
 impl log::Log for DebugLog {
     fn enabled(&self, m: &log::Metadata) -> bool {
@@ -60,7 +62,7 @@ impl log::Log for DebugLog {
 
 /// Wakes the embedder loop when Servo has work for it.
 #[derive(Clone, Default)]
-struct Waker(Arc<(Mutex<bool>, Condvar)>);
+pub(crate) struct Waker(Arc<(Mutex<bool>, Condvar)>);
 
 impl EventLoopWaker for Waker {
     fn clone_box(&self) -> Box<dyn EventLoopWaker> {
@@ -75,7 +77,7 @@ impl EventLoopWaker for Waker {
 }
 
 impl Waker {
-    fn wait(&self, timeout: Duration) {
+    pub(crate) fn wait(&self, timeout: Duration) {
         let (woken, cv) = &*self.0;
         let guard = woken.lock().unwrap();
         let (mut guard, _) = cv.wait_timeout_while(guard, timeout, |w| !*w).unwrap();
@@ -160,8 +162,14 @@ fn parse(args: &[String]) -> Result<Shot, String> {
             }
             "--dpr" => shot.dpr = value.parse().map_err(|_| "--dpr D")?,
             "--dump" => shot.dump = value == "1",
-            "--settle" => shot.settle = Duration::from_secs(value.parse().map_err(|_| "--settle SECS")?),
-            "--log" => shot.log = value.parse().map_err(|_| "--log off|error|warn|info|debug|trace")?,
+            "--settle" => {
+                shot.settle = Duration::from_secs(value.parse().map_err(|_| "--settle SECS")?)
+            }
+            "--log" => {
+                shot.log = value
+                    .parse()
+                    .map_err(|_| "--log off|error|warn|info|debug|trace")?
+            }
             "--timeout" => {
                 shot.timeout = Duration::from_secs(value.parse().map_err(|_| "--timeout SECS")?)
             }
@@ -171,18 +179,19 @@ fn parse(args: &[String]) -> Result<Shot, String> {
     Ok(shot)
 }
 
-fn shot(s: Shot) -> Result<String, String> {
-    rustls::crypto::aws_lc_rs::default_provider()
-        .install_default()
-        .map_err(|_| "a rustls crypto provider is installed already")?;
+/// Servo with our prefs, profile folder and a SWGL context of `size`, woken through `waker`.
+pub(crate) fn start_servo(
+    size: PhysicalSize<u32>,
+    waker: &Waker,
+) -> (servo::Servo, Rc<dyn RenderingContext>) {
+    // the TLS provider: only the first call installs it
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let mut prefs = Preferences::default();
     for (name, value) in INTERPRETER_PREFS {
         prefs.set_value(name, PrefValue::Bool(*value));
     }
-    let ctx: Rc<dyn RenderingContext> = Rc::new(swgl::SwglRenderingContext::new(s.size));
+    let ctx: Rc<dyn RenderingContext> = Rc::new(swgl::SwglRenderingContext::new(size));
     let _ = ctx.make_current();
-    let waker = Waker::default();
-    let started = Instant::now();
     // Servo's storage (and its caches) in the engine's private folder on C:, never a temporary folder
     let config_dir = std::path::PathBuf::from(CONFIG_DIR);
     let _ = std::fs::create_dir_all(&config_dir);
@@ -195,6 +204,13 @@ fn shot(s: Shot) -> Result<String, String> {
         .preferences(prefs)
         .event_loop_waker(Box::new(waker.clone()))
         .build();
+    (servo, ctx)
+}
+
+fn shot(s: Shot) -> Result<String, String> {
+    let waker = Waker::default();
+    let started = Instant::now();
+    let (servo, ctx) = start_servo(s.size, &waker);
     let state = Rc::new(State::default());
     let webview = WebViewBuilder::new(&servo, ctx.clone())
         .url(s.url.clone())
@@ -235,7 +251,10 @@ fn shot(s: Shot) -> Result<String, String> {
         let tag = s.out.rsplit(['/', '\\']).next().unwrap_or("shot");
         // 150 characters a line: the debug port takes under 256 bytes a line
         for (n, chunk) in base64(&png).as_bytes().chunks(150).enumerate() {
-            println!("neowebe-png {tag} {n} {}", std::str::from_utf8(chunk).unwrap());
+            println!(
+                "neowebe-png {tag} {n} {}",
+                std::str::from_utf8(chunk).unwrap()
+            );
         }
     }
     Ok(format!("{ms} ms, {frames} frames"))
@@ -246,9 +265,15 @@ fn base64(data: &[u8]) -> String {
     const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for c in data.chunks(3) {
-        let n = (u32::from(c[0]) << 16) | (u32::from(*c.get(1).unwrap_or(&0)) << 8) | u32::from(*c.get(2).unwrap_or(&0));
+        let n = (u32::from(c[0]) << 16)
+            | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*c.get(2).unwrap_or(&0));
         for i in 0..4 {
-            out.push(if i <= c.len() { A[(n >> (18 - 6 * i)) as usize & 63] as char } else { '=' });
+            out.push(if i <= c.len() {
+                A[(n >> (18 - 6 * i)) as usize & 63] as char
+            } else {
+                '='
+            });
         }
     }
     out
@@ -256,6 +281,19 @@ fn base64(data: &[u8]) -> String {
 
 fn main() -> i32 {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("--serve") {
+        let level = match args.get(1..3) {
+            Some([flag, l]) if flag == "--log" => l.parse().unwrap_or(log::LevelFilter::Warn),
+            _ => log::LevelFilter::Warn,
+        };
+        return match serve::serve(level) {
+            Ok(()) => 0,
+            Err(e) => {
+                println!("neowebe: serve FAILED: {e}");
+                1
+            }
+        };
+    }
     let s = match parse(&args) {
         Ok(s) => s,
         Err(e) => {
