@@ -1,8 +1,52 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// The stand-in engine's pages (neoweb-core FakeEngine, B08), after the canvas boards: the Wikipedia article of
-// br2-page and the GitHub dashboard of br2-login-save; any other address gets a plain page naming it. Plain text, no
-// links: Servo draws real pages from WB4 (docs browser-ui.md).
+// Servo's frame and recovery page, plus the stand-in pages used for host previews (B08).
 import { Theme } from "@neoui/kit.slint";
+
+export component WebPage inherits Image {
+    x: 0;
+    y: 0;
+    width: 100%;
+    height: 100%;
+    image-fit: fill;
+}
+
+export component CrashedPage inherits VerticalLayout {
+    callback reload();
+    alignment: center;
+    spacing: 16 * Theme.dp;
+    Text {
+        text: "Page crashed";
+        font-size: Theme.font-body;
+        font-weight: 600;
+        color: Theme.text;
+        horizontal-alignment: center;
+    }
+    HorizontalLayout {
+        alignment: center;
+        Rectangle {
+            width: 108 * Theme.dp;
+            height: 44 * Theme.dp;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.card-border;
+            background: tap.pressed ? Theme.pressed : Theme.card;
+            accessible-role: button;
+            accessible-label: "Reload";
+            accessible-action-default => { root.reload(); }
+            Text {
+                text: "Reload";
+                font-size: Theme.font-body;
+                font-weight: 600;
+                color: Theme.accent;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            tap := TouchArea {
+                clicked => { root.reload(); }
+            }
+        }
+    }
+}
 
 component Para inherits Text {
     font-size: 15 * Theme.dp;
