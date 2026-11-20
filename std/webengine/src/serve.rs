@@ -160,6 +160,7 @@ struct Delegate {
     frame_ready: std::cell::Cell<bool>,
     controls: RefCell<Controls>,
     tabs: RefCell<Tabs>,
+    downloads: RefCell<crate::downloads::Downloads>,
     /// for a page's new windows
     ctx: Rc<crate::swgl::SwglRenderingContext>,
     dpr: std::cell::Cell<f32>,
@@ -205,6 +206,9 @@ impl Controls {
     }
 }
 
+/// The start of the console line helper.js writes for a download link.
+const DOWNLOAD_MARK: &str = "neoweb:download ";
+
 /// The start of the console line [`LOGIN_SCRIPT`] writes.
 const LOGIN_MARK: &str = "neoweb:login ";
 
@@ -226,6 +230,12 @@ fn keyboard_mode(t: InputMethodType) -> u8 {
 }
 
 impl Delegate {
+    /// A thread-safe way to post events (downloads run on their own threads).
+    fn poster(&self) -> crate::downloads::Post {
+        let shared = self.shared.clone();
+        Arc::new(move |e| shared.lock().unwrap().post(e))
+    }
+
     /// A page event of `view`: the shown tab's as is, another tab's as TabInfo (WB5c).
     fn page(&self, view: &WebView, e: Event) {
         let routed = self.tabs.borrow_mut().route(view, e);
@@ -401,6 +411,10 @@ impl WebViewDelegate for Delegate {
         // LOGIN_SCRIPT's report; a page can fake it, but all it gets is our own "Save password?" sheet
         if let Some(user) = message.strip_prefix(LOGIN_MARK) {
             self.post(Event::Login { user: user.into() });
+        } else if let Some(url) = message.strip_prefix(DOWNLOAD_MARK)
+            && url.starts_with("http")
+        {
+            self.downloads.borrow_mut().start(url, self.poster());
         }
     }
 
@@ -662,6 +676,7 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
         frame_ready: Default::default(),
         controls: Default::default(),
         tabs: Default::default(),
+        downloads: Default::default(),
         ctx: ctx.clone(),
         dpr: std::cell::Cell::new(2.75),
     });
@@ -744,6 +759,12 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                     pending = true;
                 }
                 Command::Close { tab } => delegate.tabs.borrow_mut().close(tab),
+                Command::Download { url } => {
+                    delegate.downloads.borrow_mut().start(&url, delegate.poster())
+                }
+                Command::DownloadOp { id, op } => {
+                    delegate.downloads.borrow_mut().op(id, op, delegate.poster())
+                }
                 Command::DesktopSite(on) => {
                     let agent = if on { DESKTOP_AGENT.into() } else { mobile_agent.clone() };
                     servo.set_preference("user_agent", PrefValue::Str(agent));

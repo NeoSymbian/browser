@@ -25,6 +25,10 @@
 //! - **Long-press, selection, find (1.2):** [`Command::Press`] → [`Event::Pressed`] (a link, an image, or a word
 //!   selected); [`Command::Select`] and [`Command::Find`] → [`Event::Selection`] / [`Event::Found`].
 //!
+//! - **Downloads (1.3, WB5d):** [`Command::Download`] (the link menu) or a page's download link starts one in the
+//!   engine, into `C:\Data\Downloads`; [`Event::Download`] reports it; [`Command::DownloadOp`] pauses, resumes or
+//!   cancels it.
+//!
 //! Every message is a tag byte and little-endian fields; strings are a `u32` length and UTF-8; lists a `u32` count.
 
 #![no_std]
@@ -37,7 +41,7 @@ use alloc::vec::Vec;
 /// The engine's server name.
 pub const SERVER_NAME: &str = "NeoWebEngine";
 /// The protocol version (major, minor, build), checked at connect.
-pub const VERSION: (u8, u8, u16) = (1, 2, 0);
+pub const VERSION: (u8, u8, u16) = (1, 3, 0);
 /// Tab ids from here up are the engine's (a page's new window); below, NEOWEB's.
 pub const ENGINE_TABS: u32 = 0x8000_0000;
 /// Room for one encoded event (URLs and titles are cut to fit).
@@ -164,6 +168,32 @@ pub enum Command {
     },
     /// The desktop site (a desktop user agent) for the pages loaded from now.
     DesktopSite(bool),
+    /// Download `url` (the link menu's Download link).
+    Download {
+        url: String,
+    },
+    /// Pause, resume or cancel download `id`.
+    DownloadOp {
+        id: u32,
+        op: DownloadOp,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DownloadOp {
+    Pause = 0,
+    Resume = 1,
+    Cancel = 2,
+}
+
+/// Where a download is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DownloadState {
+    Downloading = 0,
+    Paused = 1,
+    Done = 2,
+    Failed = 3,
+    Cancelled = 4,
 }
 
 /// What [`Command::Select`] does.
@@ -302,6 +332,15 @@ pub enum Event {
         index: u32,
         count: u32,
     },
+    /// Download `id`: its file `name` at `path` (on C:), `received` of `total` bytes (0 = unknown), its state.
+    Download {
+        id: u32,
+        name: String,
+        path: String,
+        received: u64,
+        total: u64,
+        state: DownloadState,
+    },
 }
 
 /// The start of the frame chunk.
@@ -357,6 +396,10 @@ impl W {
     fn i32(self, v: i32) -> Self {
         self.u32(v as u32)
     }
+    fn u64(mut self, v: u64) -> Self {
+        self.0.extend_from_slice(&v.to_le_bytes());
+        self
+    }
     /// At most `max` bytes of `s`, cut at a character boundary.
     fn str(self, s: &str, max: usize) -> Self {
         let mut end = s.len().min(max);
@@ -384,6 +427,11 @@ impl R<'_> {
     }
     fn i32(&mut self) -> Result<i32, BadMessage> {
         self.u32().map(|v| v as i32)
+    }
+    fn u64(&mut self) -> Result<u64, BadMessage> {
+        let (v, rest) = self.0.split_first_chunk::<8>().ok_or(BadMessage)?;
+        self.0 = rest;
+        Ok(u64::from_le_bytes(*v))
     }
     fn bool(&mut self) -> Result<bool, BadMessage> {
         self.u8().map(|v| v != 0)
@@ -470,6 +518,8 @@ impl Command {
             Command::Select { op, x, y } => w.u8(20).u8(*op as u8).i32(*x).i32(*y),
             Command::Find { text, dir } => w.u8(21).str(text, 1024).i32(*dir),
             Command::DesktopSite(on) => w.u8(22).u8(*on as u8),
+            Command::Download { url } => w.u8(23).str(url, COMMAND_STR_MAX),
+            Command::DownloadOp { id, op } => w.u8(24).u32(*id).u8(*op as u8),
         }
         .0
     }
@@ -557,6 +607,16 @@ impl Command {
                 dir: r.i32()?,
             },
             22 => Command::DesktopSite(r.bool()?),
+            23 => Command::Download { url: r.str()? },
+            24 => Command::DownloadOp {
+                id: r.u32()?,
+                op: match r.u8()? {
+                    0 => DownloadOp::Pause,
+                    1 => DownloadOp::Resume,
+                    2 => DownloadOp::Cancel,
+                    _ => return Err(BadMessage),
+                },
+            },
             _ => return Err(BadMessage),
         };
         r.end(c)
@@ -664,6 +724,21 @@ impl Event {
                 w
             }
             Event::Found { index, count } => w.u8(17).u32(*index).u32(*count),
+            Event::Download {
+                id,
+                name,
+                path,
+                received,
+                total,
+                state,
+            } => w
+                .u8(18)
+                .u32(*id)
+                .str(name, 512)
+                .str(path, 1024)
+                .u64(*received)
+                .u64(*total)
+                .u8(*state as u8),
         }
         .0
     }
@@ -760,6 +835,21 @@ impl Event {
                 index: r.u32()?,
                 count: r.u32()?,
             },
+            18 => Event::Download {
+                id: r.u32()?,
+                name: r.str()?,
+                path: r.str()?,
+                received: r.u64()?,
+                total: r.u64()?,
+                state: match r.u8()? {
+                    0 => DownloadState::Downloading,
+                    1 => DownloadState::Paused,
+                    2 => DownloadState::Done,
+                    3 => DownloadState::Failed,
+                    4 => DownloadState::Cancelled,
+                    _ => return Err(BadMessage),
+                },
+            },
             _ => return Err(BadMessage),
         };
         r.end(e)
@@ -839,6 +929,13 @@ mod tests {
                 dir: -1,
             },
             Command::DesktopSite(true),
+            Command::Download {
+                url: "https://example.org/a.pdf".to_string(),
+            },
+            Command::DownloadOp {
+                id: 3,
+                op: DownloadOp::Resume,
+            },
         ];
         for c in all {
             assert_eq!(Command::decode(&c.encode()), Ok(c));
@@ -923,6 +1020,14 @@ mod tests {
             },
             Event::Selection { ends: vec![] },
             Event::Found { index: 2, count: 7 },
+            Event::Download {
+                id: 1,
+                name: "symbian3-dev-guide.pdf".to_string(),
+                path: "C:/Data/Downloads/symbian3-dev-guide.pdf".to_string(),
+                received: 3_355_443,
+                total: 8_808_038,
+                state: DownloadState::Downloading,
+            },
         ];
         for e in all {
             assert_eq!(Event::decode(&e.encode()), Ok(e));

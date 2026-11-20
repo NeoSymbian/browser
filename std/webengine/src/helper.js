@@ -59,6 +59,19 @@
     }
   }
 
+  // a link to a file (a download attribute, or a file type pages don't show) is a download, not a navigation
+  const fileTypes = /\.(pdf|zip|7z|rar|gz|tgz|bz2|xz|sis|sisx|apk|exe|dmg|iso|img|mp3|ogg|flac|wav|m4a|mp4|mkv|avi|mov|webm|epub|doc|docx|xls|xlsx|ppt|pptx|odt|ods|csv|torrent)$/i;
+  addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a || e.defaultPrevented) return;
+    let path = '';
+    try { path = new URL(a.href).pathname; } catch (_) { return; }
+    if (a.hasAttribute('download') || fileTypes.test(path)) {
+      e.preventDefault();
+      console.log('neoweb:download ' + a.href);
+    }
+  }, true);
+
   window.__neoweb = {
     // a long-press at (x, y): a link's [1, title, url, top], an image's [2, alt, src, top], or a word selected
     // ([3, ...ends]), else [0]
