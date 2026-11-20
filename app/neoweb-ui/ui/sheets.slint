@@ -164,7 +164,7 @@ export component SelectSheet inherits Sheet {
     }
     Flickable {
         height: min(root.max-list-h, list.preferred-height);
-        viewport-height: list.preferred-height;
+        content-height: list.preferred-height;
         list := VerticalLayout {
             for r[i] in root.rows: Rectangle {
                 height: r.group ? Theme.section-h : Theme.list-row-h;

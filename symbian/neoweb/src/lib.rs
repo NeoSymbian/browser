@@ -18,12 +18,15 @@ use e32::ipc::TIpcArgs;
 use e32::rt::{self, Either};
 use e32::sys::TPtr8;
 use engine::{Connection, Update};
-use neoapp::{App, AppEvent, Page};
+use neoapp::{App, AppEvent, Page, Query};
 use neoui_proto::{Fingers, InputEvent, TouchPhase, ipc};
+use neoweb_core::controls::{self, BackStep};
 use neoweb_core::input::{self, Suggestion};
 use neoweb_core::{Header, LiveTab, START, count_label, start};
-use neoweb_proto::{Command, Event, TouchKind};
-use neoweb_ui::{BrowserApp, BrowserState, KeyboardFocus, ShortcutTile, Suggest, Theme};
+use neoweb_proto::{Command, DialogKind, Event, SelectItem, TouchKind};
+use neoweb_ui::{
+    BrowserApp, BrowserState, KeyboardFocus, Kit, SelectRow, ShortcutTile, Suggest, Theme,
+};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 e32::main!(main);
@@ -38,6 +41,23 @@ fn main() -> i32 {
     }
 }
 
+/// A control of the page waiting for the user's answer (WB5a): what to answer with its id.
+#[derive(Default)]
+enum Control {
+    #[default]
+    None,
+    Prompt(u32),
+    Select {
+        id: u32,
+        multiple: bool,
+        items: Vec<SelectItem>,
+    },
+    Upload {
+        id: u32,
+        accept: String,
+    },
+}
+
 /// One tab for now (Opened pages is UI2), the pages visited (title, address; oldest first), the chrome's state.
 #[derive(Default)]
 struct Model {
@@ -49,6 +69,14 @@ struct Model {
     fingers: Fingers,
     /// the keyboard last asked of the UI server: (open, KeyboardFocus.seq, mode)
     keyboard: (bool, i32, i32),
+    /// the keyboard the focused page field wants (a neoui KEYBOARD mode, 0 = none; WB5a)
+    page_keys: u8,
+    /// the open sheet's control, the shell's QUERY's dialog, and a file pick waiting for Files
+    control: Control,
+    query: Option<u32>,
+    picking: Option<u32>,
+    /// the page size last sent to the engine
+    sent: Option<Command>,
 }
 
 impl Model {
@@ -113,9 +141,11 @@ impl Model {
                 return self.go(ui, url);
             }
             "cancel-edit" => self.end_edit(ui),
-            "back" if self.editing => self.end_edit(ui),
-            "back" if self.live.back && self.showing_web => return Some(Command::Back),
-            "back" => self.showing_web = false,
+            "back" => match controls::back_step(self.editing, self.showing_web, self.live.back) {
+                BackStep::EndEdit => self.end_edit(ui),
+                BackStep::History => return Some(Command::Back),
+                BackStep::StartPage | BackStep::Shell => self.showing_web = false,
+            },
             "forward" if !self.showing_web => self.showing_web = !self.live.url.is_empty(),
             "forward" if self.live.forward => return Some(Command::Forward),
             "reload" if self.live.crashed => return self.go(ui, self.live.url.clone()),
@@ -124,10 +154,178 @@ impl Model {
                 self.live.loading.stop();
                 return Some(Command::Stop);
             }
+            "prompt" => {
+                if let Control::Prompt(id) = core::mem::take(&mut self.control) {
+                    return Some(Command::Answer {
+                        id,
+                        ok: i == 1,
+                        text: s.get_sheet_value().into(),
+                    });
+                }
+            }
+            "select" => {
+                if let Control::Select {
+                    id,
+                    multiple,
+                    items,
+                } = &mut self.control
+                    && let Some(it) = items.get_mut(i as usize)
+                {
+                    if !*multiple {
+                        let picked = alloc::vec![it.id];
+                        let id = *id;
+                        self.control = Control::None;
+                        return Some(Command::Choose {
+                            id,
+                            cancel: false,
+                            picked,
+                        });
+                    }
+                    it.selected = !it.selected;
+                    s.set_select_rows(select_rows(items));
+                }
+            }
+            "select-done" | "select-cancel" => {
+                if let Control::Select { id, items, .. } = core::mem::take(&mut self.control) {
+                    return Some(Command::Choose {
+                        id,
+                        cancel: action == "select-cancel",
+                        picked: items
+                            .iter()
+                            .filter(|it| it.selected && it.id != SelectItem::GROUP)
+                            .map(|it| it.id)
+                            .collect(),
+                    });
+                }
+            }
+            "upload-cancel" => {
+                if let Control::Upload { id, .. } = core::mem::take(&mut self.control) {
+                    return Some(Command::Files {
+                        id,
+                        paths: Vec::new(),
+                    });
+                }
+            }
+            // "upload" opens Files (App needed: run's loop); "login" waits for WB6's store
             // tabs, Options, bookmarks, site info, edit shortcuts: UI2–UI5
             _ => {}
         }
         None
+    }
+
+    /// The page's controls (WB5a): a field's keyboard, a dialog, a select, a file pick, the clipboard. Returns an
+    /// answer to send at once.
+    fn control(&mut self, app: &App, ui: &BrowserApp, event: Event) -> Option<Command> {
+        let s = ui.global::<BrowserState>();
+        let site = Header::of(&self.live.url).domain;
+        match event {
+            Event::Keyboard { mode } => self.page_keys = mode,
+            Event::Dialog {
+                id,
+                kind: DialogKind::Prompt,
+                text,
+                value,
+            } => {
+                s.set_sheet_site(site.as_str().into());
+                s.set_sheet_text(text.as_str().into());
+                s.set_sheet_value(value.as_str().into());
+                self.control = Control::Prompt(id);
+                ui.invoke_show_sheet(1);
+            }
+            Event::Dialog { id, kind, text, .. } => {
+                let (text, buttons) = controls::query(&site, kind, &text);
+                let q = Query {
+                    text,
+                    buttons,
+                    destructive: false,
+                };
+                if app.query(&q).is_err() {
+                    return Some(Command::Answer {
+                        id,
+                        ok: false,
+                        text: String::new(),
+                    });
+                }
+                // shortcut: one QUERY at a time; a dialog arriving while one is open answers the older as Cancel
+                let older = self.query.replace(id);
+                return older.map(|id| Command::Answer {
+                    id,
+                    ok: false,
+                    text: String::new(),
+                });
+            }
+            Event::Select {
+                id,
+                multiple,
+                items,
+            } => {
+                s.set_select_rows(select_rows(&items));
+                s.set_select_multiple(multiple);
+                self.control = Control::Select {
+                    id,
+                    multiple,
+                    items,
+                };
+                ui.invoke_show_sheet(2);
+            }
+            Event::FilePick { id, accept, .. } => {
+                // shortcut: no recent files yet (Files keeps no list another app can read)
+                s.set_recent_files(model(Vec::new()));
+                self.control = Control::Upload { id, accept };
+                ui.invoke_show_sheet(3);
+            }
+            Event::ClipboardSet(text) => {
+                // over the shell's 2048 bytes the copy is refused, never cut (browser-ui.md)
+                if !app.set_clipboard(&text) {
+                    let _ = app.note("Too long to copy", "");
+                }
+            }
+            Event::ClipboardGet { id } => {
+                return Some(Command::Clipboard {
+                    id,
+                    text: app.clipboard().unwrap_or_default(),
+                });
+            }
+            _ => {}
+        }
+        None
+    }
+
+    /// Open Files to pick the file a page asked for (br2-upload's choice `i`: 0 Photos, 1 Files, 2 Memory card).
+    fn pick(&mut self, app: &App, i: i32) -> Option<Command> {
+        let Control::Upload { id, accept } = core::mem::take(&mut self.control) else {
+            return None;
+        };
+        let filter = controls::picker_filter(&accept, i == 0);
+        let files = neoui_proto::open::files::KEY;
+        match app.open(files, neoui_proto::open::files::PICK, &filter) {
+            Ok(()) => {
+                self.picking = Some(id);
+                None
+            }
+            Err(e) => {
+                dprintln!("neoweb: Files picker {}", e);
+                Some(Command::Files {
+                    id,
+                    paths: Vec::new(),
+                })
+            }
+        }
+    }
+
+    /// Back from Files: copy the picked file where the engine can read it and answer the file pick.
+    fn picked(&mut self, app: &App) -> Option<Command> {
+        let id = self.picking.take()?;
+        let paths = match app.result_file().map(|f| copy_for_engine(&f)) {
+            Some(Ok(path)) => alloc::vec![path],
+            Some(Err(e)) => {
+                dprintln!("neoweb: upload copy {}", e);
+                let _ = app.note("Can't read that file", "");
+                Vec::new()
+            }
+            None => Vec::new(),
+        };
+        Some(Command::Files { id, paths })
     }
 
     fn suggest(&mut self, text: &str) {
@@ -237,6 +435,48 @@ impl Model {
     }
 }
 
+fn select_rows(items: &[SelectItem]) -> ModelRc<SelectRow> {
+    model(
+        items
+            .iter()
+            .map(|it| SelectRow {
+                label: it.label.as_str().into(),
+                group: it.id == SelectItem::GROUP,
+                disabled: it.disabled,
+                selected: it.selected,
+            })
+            .collect(),
+    )
+}
+
+/// Copy a file Files handed over into the engine's upload folder; its path there, as the engine names it.
+fn copy_for_engine(f: &e32::fs::SharedFile) -> Result<String, i32> {
+    use e32::fs::{Fs, mode};
+    let src = f.file();
+    let path = controls::upload_path(&src.full_name()?);
+    let fs = Fs::connect()?;
+    let sym: String = path.replace('/', "\\");
+    let dir = &sym[..=sym.rfind('\\').unwrap_or(0)];
+    let _ = fs.mkdir(dir); // it may exist
+    let dst = e32::fs::File::replace(
+        &fs,
+        &sym,
+        mode::WRITE | mode::SHARE_EXCLUSIVE | mode::BIG_FILE,
+    )?;
+    let mut buf = alloc::vec![0u8; 64 * 1024];
+    let mut pos = 0u64;
+    loop {
+        let n = src.read_at64(pos, &mut buf)?;
+        if n == 0 {
+            break;
+        }
+        dst.write(&buf[..n])?;
+        pos += n as u64;
+    }
+    dst.flush()?;
+    Ok(path)
+}
+
 fn model<T: Clone + 'static>(v: Vec<T>) -> ModelRc<T> {
     ModelRc::from(Rc::new(VecModel::from(v)))
 }
@@ -286,20 +526,46 @@ fn run() -> Result<(), i32> {
                     if event == AppEvent::Quit {
                         return Ok(());
                     }
+                    let page_typing = m.page_keys > 0 && !m.editing && !ui.get_sheet_open();
                     if let AppEvent::Input(input) = event
                         && let Some(command) = m.touch(&ui, input)
                     {
                         result = connection.send(command);
-                    } else {
+                    } else if let AppEvent::Input(InputEvent::Key { code, down }) = event
+                        && page_typing
+                    {
+                        result = connection.send(Command::Key { code, down });
+                    } else if event != AppEvent::Back {
                         app.handle(&event);
                     }
                     match event {
+                        // the kit's sheets close first (their cancel comes back as an action)
+                        AppEvent::Back if neoapp::kit_back!(ui) => {}
                         AppEvent::Back => actions.borrow_mut().push_back(("back".into(), 0)),
-                        AppEvent::Area { .. } => result = connection.send(resize(&app, &ui)),
                         AppEvent::Keyboard { h } => {
                             let kf = ui.global::<KeyboardFocus>();
                             kf.set_dismissed(h == 0 && kf.get_open());
                             kf.set_text_h(h as f32);
+                            ui.global::<BrowserState>().set_keyboard_px(h as i32);
+                            // the user put the page's keyboard away
+                            if h == 0 && page_typing {
+                                m.page_keys = 0;
+                                result = connection.send(Command::ImeDismissed);
+                            }
+                        }
+                        AppEvent::Answer { i } => {
+                            if let Some(id) = m.query.take() {
+                                result = connection.send(Command::Answer {
+                                    id,
+                                    ok: i == 0,
+                                    text: String::new(),
+                                });
+                            }
+                        }
+                        AppEvent::Visible(true) => {
+                            if let Some(c) = m.picked(&app) {
+                                result = connection.send(c);
+                            }
                         }
                         _ => {}
                     }
@@ -307,7 +573,9 @@ fn run() -> Result<(), i32> {
                 Either::Right(Either::Left(update)) => {
                     result = update.and_then(|update| match update {
                         Update::Connected => {
-                            connection.send(resize(&app, &ui))?;
+                            let size = resize(&app, &ui);
+                            connection.send(size.clone())?;
+                            m.sent = Some(size);
                             if !m.live.url.is_empty() {
                                 connection.send(Command::Load(m.live.url.clone()))?;
                             }
@@ -332,6 +600,17 @@ fn run() -> Result<(), i32> {
                             m.crash(&ui, reason);
                             Ok(())
                         }
+                        Update::Event(
+                            event @ (Event::Keyboard { .. }
+                            | Event::Dialog { .. }
+                            | Event::Select { .. }
+                            | Event::FilePick { .. }
+                            | Event::ClipboardSet(_)
+                            | Event::ClipboardGet { .. }),
+                        ) => match m.control(&app, &ui, event) {
+                            Some(answer) => connection.send(answer),
+                            None => Ok(()),
+                        },
                         Update::Event(event) => {
                             // The engine may publish its initial blank document before the first Load.
                             if !m.live.url.is_empty() {
@@ -349,7 +628,12 @@ fn run() -> Result<(), i32> {
                 m.crash(&ui, alloc::format!("engine IPC {}", error));
             }
             while let Some((action, i)) = actions.borrow_mut().pop_front() {
-                if let Some(command) = m.act(&ui, &action, i)
+                let command = if action == "upload" {
+                    m.pick(&app, i)
+                } else {
+                    m.act(&ui, &action, i)
+                };
+                if let Some(command) = command
                     && let Err(error) = connection.send(command)
                 {
                     connection = Connection::Offline;
@@ -358,6 +642,11 @@ fn run() -> Result<(), i32> {
                 m.show(&ui);
             }
             sync(&app, &ui, &mut m, &mut shown)?;
+            // the page area changed (the keyboard came or went): tell the engine once
+            let size = resize(&app, &ui);
+            if m.sent.as_ref() != Some(&size) && connection.send(size.clone()).is_ok() {
+                m.sent = Some(size);
+            }
             app.redraw()?;
         }
     })
@@ -403,7 +692,7 @@ fn sync(app: &App, ui: &BrowserApp, m: &mut Model, shown: &mut Page) -> Result<(
     };
     let page = Page {
         title: title[..title.floor_char_boundary(ipc::TITLE_MAX)].into(),
-        can_back: m.editing || m.showing_web,
+        can_back: m.editing || m.showing_web || ui.global::<Kit>().get_layers() > 0,
         ..Page::default()
     };
     if page != *shown {
@@ -411,7 +700,13 @@ fn sync(app: &App, ui: &BrowserApp, m: &mut Model, shown: &mut Page) -> Result<(
         *shown = page;
     }
     let kf = ui.global::<KeyboardFocus>();
-    let want = (kf.get_open(), kf.get_seq(), kf.get_mode());
+    // a Slint field (address, prompt) first; else the page's focused field (seq -1 marks the page's own)
+    let page_keys = m.page_keys > 0 && !m.editing && !ui.get_sheet_open();
+    let want = if kf.get_open() || !page_keys {
+        (kf.get_open(), kf.get_seq(), kf.get_mode())
+    } else {
+        (true, -1, i32::from(m.page_keys))
+    };
     if want.0 != m.keyboard.0 || (want.0 && (want.1, want.2) != (m.keyboard.1, m.keyboard.2)) {
         m.keyboard = want;
         let mode = if want.0 {
