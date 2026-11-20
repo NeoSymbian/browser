@@ -119,7 +119,7 @@ struct Shot {
     size: PhysicalSize<u32>,
     dpr: f32,
     timeout: Duration,
-    /// Also print the PNG on the debug log as base64 lines (`neowebe-png N DATA`), for emulators without file access.
+    /// Also print the PNG on the debug log as base64 lines (`neowebe-png NAME N DATA`), for emulators without file access.
     dump: bool,
     /// Servo's log on the debug log, up to this level.
     log: log::LevelFilter,
@@ -226,9 +226,11 @@ fn shot(s: Shot) -> Result<String, String> {
     image.save(&s.out).map_err(|e| format!("{}: {e}", s.out))?;
     if s.dump {
         let png = std::fs::read(&s.out).map_err(|e| format!("{}: {e}", s.out))?;
+        // the file's name tells several dumps in one log apart
+        let tag = s.out.rsplit(['/', '\\']).next().unwrap_or("shot");
         // 150 characters a line: the debug port takes under 256 bytes a line
         for (n, chunk) in base64(&png).as_bytes().chunks(150).enumerate() {
-            println!("neowebe-png {n} {}", std::str::from_utf8(chunk).unwrap());
+            println!("neowebe-png {tag} {n} {}", std::str::from_utf8(chunk).unwrap());
         }
     }
     Ok(format!("{ms} ms, {frames} frames"))

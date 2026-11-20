@@ -19,3 +19,4 @@ Resource\NeoWeb\Pages\long.html=neoweb/pages/long.html
 Resource\NeoWeb\Pages\photo.jpg=neoweb/pages/photo.jpg
 Resource\NeoWeb\Pages\text.html=neoweb/pages/text.html
 Resource\NeoWeb\Pages\webfont.ttf=neoweb/pages/webfont.ttf
+Resource\NeoWeb\Pages\hello.html=neoweb/pages/hello.html
