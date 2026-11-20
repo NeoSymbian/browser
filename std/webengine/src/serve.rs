@@ -9,7 +9,10 @@
 //! - **Frames:** one global chunk, two RGBA8 buffers sized for [`MAX_W`] × [`MAX_H`]. A buffer is written only while
 //!   NEOWEB doesn't hold it (between [`Event::Frame`] and [`Command::FrameShown`]), so painting never outruns showing.
 //! - **Lifetime:** the server is transient: when the last session closes, the engine exits; NEOWEB starts it again.
+//! - **Controls (WB5a):** keys become Servo keyboard presses; a focused field's input method, script dialogs, page
+//!   unloads, `<select>` and file pickers go to NEOWEB as events with an id and wait in [`Controls`] for the answer.
 
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -20,11 +23,16 @@ use e32::chunk::Chunk;
 use e32::server::{Message, Server, Service};
 use e32::sys::TVersion;
 use euclid::Scale;
-use neoweb_proto::{Command, Event, FrameHeader, Load, Rect, TouchKind, func};
+use neoweb_proto::{
+    Command, DialogKind, Event, FrameHeader, Load, Rect, SelectItem, TouchKind, func,
+};
 use servo::{
-    DevicePoint, EventLoopWaker, InputEvent, LoadStatus, RenderingContext, TouchEvent,
-    TouchEventType, TouchId, TouchPointerType, WebView, WebViewBuilder, WebViewDelegate,
-    WebViewPoint, WheelDelta, WheelEvent, WheelMode,
+    AllowOrDenyRequest, ClipboardDelegate, Code, DevicePoint, EmbedderControl, EmbedderControlId,
+    EventLoopWaker, FilePicker, ImeEvent, InputEvent, InputMethodType, Key, KeyState,
+    KeyboardEvent, LoadStatus, Location, Modifiers, NamedKey, RenderingContext, SelectElement,
+    SelectElementOption, SelectElementOptionOrOptgroup, SimpleDialog, StringRequest, TouchEvent, TouchEventType, TouchId,
+    TouchPointerType, WebView, WebViewBuilder, WebViewDelegate, WebViewPoint, WheelDelta,
+    WheelEvent, WheelMode,
 };
 
 use crate::Waker;
@@ -147,11 +155,55 @@ impl Service for Engine {
 struct Delegate {
     shared: SharedRef,
     frame_ready: std::cell::Cell<bool>,
+    controls: RefCell<Controls>,
 }
 
 impl Delegate {
     fn post(&self, e: Event) {
         self.shared.lock().unwrap().post(e);
+    }
+}
+
+/// A control NEOWEB shows for the page, until its answer comes.
+enum Pending {
+    Dialog(SimpleDialog),
+    Unload(AllowOrDenyRequest),
+    Select(SelectElement),
+    Files(FilePicker),
+    Clipboard(StringRequest),
+}
+
+/// The controls waiting for NEOWEB, by protocol id. An unanswered one is answered by its `Drop` (Servo's default:
+/// dismissed) when it is hidden or the engine ends.
+#[derive(Default)]
+struct Controls {
+    next: u32,
+    open: Vec<(u32, Option<EmbedderControlId>, Pending)>,
+    /// The focused field's input method while it has the keyboard.
+    ime: Option<EmbedderControlId>,
+    /// Ctrl (0x11) came from the keyboard's edit bar: the next key goes with it.
+    ctrl: bool,
+}
+
+impl Controls {
+    fn add(&mut self, control: Option<EmbedderControlId>, p: Pending) -> u32 {
+        self.next = self.next.wrapping_add(1);
+        self.open.push((self.next, control, p));
+        self.next
+    }
+
+    fn take(&mut self, id: u32) -> Option<Pending> {
+        let i = self.open.iter().position(|(i, ..)| *i == id)?;
+        Some(self.open.remove(i).2)
+    }
+}
+
+/// The neoui keyboard (`KEYBOARD` mode) for a field: number and phone pads, else text.
+fn keyboard_mode(t: InputMethodType) -> u8 {
+    match t {
+        InputMethodType::Number => 3,
+        InputMethodType::Tel => 4,
+        _ => 1,
     }
 }
 
@@ -186,6 +238,218 @@ impl WebViewDelegate for Delegate {
     fn notify_crashed(&self, _: WebView, reason: String, _backtrace: Option<String>) {
         println!("neowebe: crashed: {reason}");
         self.post(Event::Crashed(reason));
+    }
+
+    fn show_embedder_control(&self, _: WebView, control: EmbedderControl) {
+        let mut c = self.controls.borrow_mut();
+        let ctl = control.id();
+        let event = match control {
+            EmbedderControl::InputMethod(im) => {
+                // a field focused by script, before the user touched the page, gets no keyboard
+                if !im.allow_virtual_keyboard() {
+                    return;
+                }
+                c.ime = Some(ctl);
+                Event::Keyboard {
+                    mode: keyboard_mode(im.input_method_type()),
+                }
+            }
+            EmbedderControl::SimpleDialog(d) => {
+                let (kind, text, value) = match &d {
+                    SimpleDialog::Alert(a) => (DialogKind::Alert, a.message().to_owned(), String::new()),
+                    SimpleDialog::Confirm(a) => (DialogKind::Confirm, a.message().to_owned(), String::new()),
+                    SimpleDialog::Prompt(p) => (
+                        DialogKind::Prompt,
+                        p.message().to_owned(),
+                        p.current_value().to_owned(),
+                    ),
+                };
+                let id = c.add(Some(ctl), Pending::Dialog(d));
+                Event::Dialog {
+                    id,
+                    kind,
+                    text,
+                    value,
+                }
+            }
+            EmbedderControl::SelectElement(sel) => {
+                let chosen = sel.selected_options();
+                let item = |o: &SelectElementOption| SelectItem {
+                    id: o.id as u32,
+                    label: o.label.clone(),
+                    disabled: o.is_disabled,
+                    selected: chosen.contains(&o.id),
+                };
+                let mut items = Vec::new();
+                for o in sel.options() {
+                    match o {
+                        SelectElementOptionOrOptgroup::Option(o) => items.push(item(o)),
+                        SelectElementOptionOrOptgroup::Optgroup { label, options } => {
+                            items.push(SelectItem {
+                                id: SelectItem::GROUP,
+                                label: label.clone(),
+                                disabled: true,
+                                selected: false,
+                            });
+                            items.extend(options.iter().map(item));
+                        }
+                    }
+                }
+                let multiple = sel.allow_select_multiple();
+                let id = c.add(Some(ctl), Pending::Select(sel));
+                Event::Select {
+                    id,
+                    multiple,
+                    items,
+                }
+            }
+            EmbedderControl::FilePicker(f) => {
+                let accept = f
+                    .filter_patterns()
+                    .iter()
+                    .map(|p| p.0.trim_start_matches('.'))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let multiple = f.allow_select_multiple();
+                let id = c.add(Some(ctl), Pending::Files(f));
+                Event::FilePick {
+                    id,
+                    multiple,
+                    accept,
+                }
+            }
+            // the link menu is WB5c; a colour picker keeps its colour (both answer on drop)
+            EmbedderControl::ContextMenu(_) | EmbedderControl::ColorPicker(_) => return,
+        };
+        drop(c);
+        self.post(event);
+    }
+
+    fn hide_embedder_control(&self, _: WebView, id: EmbedderControlId) {
+        let mut c = self.controls.borrow_mut();
+        // dropping it answers with Servo's default; a late hide can't close a newer field's keyboard (ids differ)
+        c.open.retain(|(_, ctl, _)| *ctl != Some(id));
+        if c.ime == Some(id) {
+            c.ime = None;
+            drop(c);
+            self.post(Event::Keyboard { mode: 0 });
+        }
+    }
+
+    fn request_unload(&self, _: WebView, request: AllowOrDenyRequest) {
+        let id = self.controls.borrow_mut().add(None, Pending::Unload(request));
+        self.post(Event::Dialog {
+            id,
+            kind: DialogKind::Unload,
+            text: "Leave this page? Changes you made may not be saved.".into(),
+            value: String::new(),
+        });
+    }
+}
+
+/// The page's clipboard is the shell's (through NEOWEB).
+impl ClipboardDelegate for Delegate {
+    fn get_text(&self, _: WebView, request: StringRequest) {
+        let id = self
+            .controls
+            .borrow_mut()
+            .add(None, Pending::Clipboard(request));
+        self.post(Event::ClipboardGet { id });
+    }
+
+    fn set_text(&self, _: WebView, text: String) {
+        self.post(Event::ClipboardSet(text));
+    }
+}
+
+/// NEOWEB's answer to control `id` (an unknown or late id is ignored: its control was hidden).
+fn answer(d: &Delegate, cmd: Command) {
+    let id = match &cmd {
+        Command::Answer { id, .. }
+        | Command::Choose { id, .. }
+        | Command::Files { id, .. }
+        | Command::Clipboard { id, .. } => *id,
+        _ => return,
+    };
+    let Some(p) = d.controls.borrow_mut().take(id) else {
+        return;
+    };
+    match (p, cmd) {
+        (Pending::Dialog(SimpleDialog::Prompt(mut p)), Command::Answer { ok: true, text, .. }) => {
+            p.set_current_value(&text);
+            p.confirm();
+        }
+        (Pending::Dialog(dlg), Command::Answer { ok, .. }) => {
+            if ok {
+                dlg.confirm()
+            } else {
+                dlg.dismiss()
+            }
+        }
+        (Pending::Unload(r), Command::Answer { ok, .. }) => {
+            if ok {
+                r.allow()
+            } else {
+                r.deny()
+            }
+        }
+        (Pending::Select(mut sel), Command::Choose { cancel, picked, .. }) => {
+            if !cancel {
+                sel.select(picked.into_iter().map(|i| i as usize).collect());
+                sel.submit();
+            }
+        }
+        (Pending::Files(mut f), Command::Files { paths, .. }) => {
+            if paths.is_empty() {
+                f.dismiss();
+            } else {
+                f.select(&paths.into_iter().map(Into::into).collect::<Vec<_>>());
+                f.submit();
+            }
+        }
+        (Pending::Clipboard(r), Command::Clipboard { text, .. }) => r.success(text),
+        _ => {} // a mismatched answer: the control answers on drop
+    }
+}
+
+/// A key from the shell's keyboard (presses only) as a Servo press and release.
+fn key(webview: &WebView, controls: &RefCell<Controls>, code: u32) {
+    let mut c = controls.borrow_mut();
+    if code == 0x11 {
+        c.ctrl = true;
+        return;
+    }
+    let modifiers = if std::mem::take(&mut c.ctrl) {
+        Modifiers::CONTROL
+    } else {
+        Modifiers::empty()
+    };
+    drop(c);
+    let key = match code {
+        8 => Key::Named(NamedKey::Backspace),
+        9 => Key::Named(NamedKey::Tab),
+        13 => Key::Named(NamedKey::Enter),
+        27 => Key::Named(NamedKey::Escape),
+        0xF807 => Key::Named(NamedKey::ArrowLeft),
+        0xF808 => Key::Named(NamedKey::ArrowRight),
+        0xF809 => Key::Named(NamedKey::ArrowUp),
+        0xF80A => Key::Named(NamedKey::ArrowDown),
+        _ => match char::from_u32(code) {
+            Some(ch) if !ch.is_control() => Key::Character(ch.to_string()),
+            _ => return,
+        },
+    };
+    for state in [KeyState::Down, KeyState::Up] {
+        let event = KeyboardEvent::new_without_event(
+            state,
+            key.clone(),
+            Code::Unidentified,
+            Location::Standard,
+            modifiers,
+            false,
+            false,
+        );
+        webview.notify_input_event(InputEvent::Keyboard(event));
     }
 }
 
@@ -244,7 +508,7 @@ impl Buffers {
     }
 }
 
-fn input(webview: &WebView, cmd: Command) {
+fn input(webview: &WebView, d: &Delegate, cmd: Command) {
     match cmd {
         Command::Touch { kind, id, x, y } => {
             let kind = match kind {
@@ -268,9 +532,13 @@ fn input(webview: &WebView, cmd: Command) {
             let point = WebViewPoint::Device(DevicePoint::new(x as f32, y as f32));
             webview.notify_input_event(InputEvent::Wheel(WheelEvent::new(delta, point)));
         }
-        // shortcut: keys and text arrive in WB5 (focus, IME); dropped until then
-        Command::Key { .. } | Command::Text(_) => {}
-        _ => {}
+        Command::Key { code, down: true } => key(webview, &d.controls, code),
+        Command::Text(t) => t.chars().for_each(|ch| key(webview, &d.controls, ch.into())),
+        Command::ImeDismissed => {
+            d.controls.borrow_mut().ime = None;
+            webview.notify_input_event(InputEvent::Ime(ImeEvent::Dismissed));
+        }
+        other => answer(d, other),
     }
 }
 
@@ -324,7 +592,10 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
     let delegate = Rc::new(Delegate {
         shared: shared.clone(),
         frame_ready: Default::default(),
+        controls: Default::default(),
     });
+    // After a resize while a field has the keyboard, the field is scrolled into view once the page has the new size.
+    let mut reveal_at: Option<std::time::Instant> = None;
     // The page is made at the first Load, with its URL and the client's size: a load sent to a WebView whose
     // browsing context the constellation hasn't made yet is dropped ("LoadUrl for unknown browsing context").
     let mut webview: Option<WebView> = None;
@@ -371,6 +642,7 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                                 .url(u)
                                 .hidpi_scale_factor(Scale::new(dpr))
                                 .delegate(delegate.clone())
+                                .clipboard_delegate(delegate.clone())
                                 .build(),
                         );
                     }
@@ -388,6 +660,10 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                         wv.set_hidpi_scale_factor(Scale::new(dpr));
                     }
                     println!("neowebe: resize {}x{} dpr {dpr}", new.width, new.height);
+                    if new != size && delegate.controls.borrow().ime.is_some() {
+                        // shortcut: a fixed delay for the page's relayout; an engine hook if fields land off screen
+                        reveal_at = Some(std::time::Instant::now() + Duration::from_millis(150));
+                    }
                     size = new;
                     pending = true;
                 }
@@ -404,7 +680,18 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                 Command::Forward => {
                     webview.as_ref().unwrap().go_forward(1);
                 }
-                other => input(webview.as_ref().unwrap(), other),
+                other => input(webview.as_ref().unwrap(), &delegate, other),
+            }
+        }
+        if let Some(t) = reveal_at
+            && std::time::Instant::now() >= t
+        {
+            reveal_at = None;
+            if let Some(w) = &webview {
+                w.evaluate_javascript(
+                    "document.activeElement && document.activeElement.scrollIntoView({block:'nearest'})",
+                    |_| {},
+                );
             }
         }
         servo.spin_event_loop();

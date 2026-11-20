@@ -40,6 +40,8 @@ const INTERPRETER_PREFS: &[(&str, bool)] = &[
     ("js_asmjs_enabled", false),
     // rustls' bundled roots: there is no system certificate store
     ("network_use_webpki_roots", true),
+    // contenteditable: typing, Backspace and Enter in an editing host go through execCommand (browser WB5a)
+    ("dom_exec_command_enabled", true),
 ];
 
 /// The engine's private folder (its SID, 0xE0007008): profile, storage, caches.

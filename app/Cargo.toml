@@ -15,7 +15,7 @@ license = "Apache-2.0"
 neoweb-core = { path = "neoweb-core" }
 neoweb-ui = { path = "neoweb-ui" }
 # NeoSymbian/neoui: the kit (theme, fonts, glyphs, components) as a build helper; the rev neoui's APPS knows NEOWEB at
-neoui-kit = { git = "https://github.com/NeoSymbian/neoui", rev = "737babd9c4d3da1a20ec1d2260c7b2f356de9771" }
+neoui-kit = { git = "https://github.com/NeoSymbian/neoui", rev = "0ca50cfb6ba6ebd488658e440da229523ef50601" }
 # the same Slint as neoui (one copy in the ROM, no_std)
 slint = { version = "=1.18.1", default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "libm", "renderer-software"] }
 png = "=0.18.1"

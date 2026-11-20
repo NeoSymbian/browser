@@ -12,7 +12,13 @@
 //! - **Ending:** NEOWEB sends [`func::CANCEL`] before it drops its held [`func::NEXT_EVENT`] (a pending request
 //!   can't be withdrawn); when the engine dies the held request fails with `KErrServerTerminated`.
 //!
-//! Every message is a tag byte and little-endian fields; strings are a `u32` length and UTF-8.
+//! - **Controls (1.1, WB5a):** a focused field asks for the keyboard ([`Event::Keyboard`]); script dialogs, page
+//!   unloads, `<select>` and `<input type=file>` arrive as [`Event::Dialog`], [`Event::Select`] and
+//!   [`Event::FilePick`] with an id, answered once with [`Command::Answer`], [`Command::Choose`] and
+//!   [`Command::Files`]. The page's clipboard is the shell's: [`Event::ClipboardSet`], and [`Event::ClipboardGet`]
+//!   answered with [`Command::Clipboard`].
+//!
+//! Every message is a tag byte and little-endian fields; strings are a `u32` length and UTF-8; lists a `u32` count.
 
 #![no_std]
 
@@ -24,7 +30,7 @@ use alloc::vec::Vec;
 /// The engine's server name.
 pub const SERVER_NAME: &str = "NeoWebEngine";
 /// The protocol version (major, minor, build), checked at connect.
-pub const VERSION: (u8, u8, u16) = (1, 0, 0);
+pub const VERSION: (u8, u8, u16) = (1, 1, 0);
 /// Room for one encoded event (URLs and titles are cut to fit).
 pub const EVENT_MAX: usize = 4096;
 
@@ -83,6 +89,8 @@ pub enum Command {
         x: i32,
         y: i32,
     },
+    /// A key from the shell for the focused page field: a Unicode scalar, Backspace 8, Enter 13, or Ctrl 0x11 before
+    /// `a`, `c` or `v` (the keyboard's edit bar). The keyboard sends presses only (`down`).
     Key {
         code: u32,
         down: bool,
@@ -92,6 +100,54 @@ pub enum Command {
     FrameShown {
         seq: u32,
     },
+    /// The user hid the keyboard the page asked for.
+    ImeDismissed,
+    /// The answer to [`Event::Dialog`] `id`: OK (or Leave) or Cancel, and a prompt's text.
+    Answer {
+        id: u32,
+        ok: bool,
+        text: String,
+    },
+    /// The answer to [`Event::Select`] `id`: the chosen [`SelectItem::id`]s, or `cancel` (keep the old choice).
+    Choose {
+        id: u32,
+        cancel: bool,
+        picked: Vec<u32>,
+    },
+    /// The answer to [`Event::FilePick`] `id`: files the engine can read; none = cancelled.
+    Files {
+        id: u32,
+        paths: Vec<String>,
+    },
+    /// The answer to [`Event::ClipboardGet`] `id`.
+    Clipboard {
+        id: u32,
+        text: String,
+    },
+}
+
+/// What a script dialog is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DialogKind {
+    Alert = 0,
+    Confirm = 1,
+    Prompt = 2,
+    /// "Leave this page?" (`beforeunload`): OK leaves.
+    Unload = 3,
+}
+
+/// One row of a `<select>`'s picker: an option, or a group's label ([`SelectItem::GROUP`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectItem {
+    pub id: u32,
+    pub label: String,
+    pub disabled: bool,
+    pub selected: bool,
+}
+
+impl SelectItem {
+    /// The id of a group label row (not selectable).
+    pub const GROUP: u32 = u32::MAX;
 }
 
 /// Page load progress.
@@ -123,6 +179,35 @@ pub enum Event {
     },
     /// The page (or the engine) failed; NEOWEB shows "page crashed" with Reload.
     Crashed(String),
+    /// The keyboard the focused field wants: a neoui `KEYBOARD` mode (0 = none, 1 text, 3 number, 4 phone).
+    Keyboard {
+        mode: u8,
+    },
+    /// A script dialog or a page unload to confirm; `value` is a prompt's default text.
+    Dialog {
+        id: u32,
+        kind: DialogKind,
+        text: String,
+        value: String,
+    },
+    /// A `<select>` was tapped: its rows (cut to fit [`EVENT_MAX`]).
+    Select {
+        id: u32,
+        multiple: bool,
+        items: Vec<SelectItem>,
+    },
+    /// An `<input type=file>` was tapped; `accept` lists the extensions it takes (comma-separated, empty = any).
+    FilePick {
+        id: u32,
+        multiple: bool,
+        accept: String,
+    },
+    /// The page copied text.
+    ClipboardSet(String),
+    /// The page wants the clipboard's text: answer with [`Command::Clipboard`].
+    ClipboardGet {
+        id: u32,
+    },
 }
 
 /// The start of the frame chunk.
@@ -220,6 +305,17 @@ impl R<'_> {
             .map(String::from)
             .map_err(|_| BadMessage)
     }
+    /// A `u32` count, then that many items (the count can't promise more bytes than are left).
+    fn list<T>(
+        &mut self,
+        mut item: impl FnMut(&mut Self) -> Result<T, BadMessage>,
+    ) -> Result<Vec<T>, BadMessage> {
+        let n = self.u32()? as usize;
+        if n > self.0.len() {
+            return Err(BadMessage);
+        }
+        (0..n).map(|_| item(self)).collect()
+    }
     /// The whole message was read.
     fn end<T>(self, v: T) -> Result<T, BadMessage> {
         if self.0.is_empty() {
@@ -254,6 +350,25 @@ impl Command {
             Command::Key { code, down } => w.u8(8).u32(*code).u8(*down as u8),
             Command::Text(t) => w.u8(9).str(t, COMMAND_STR_MAX),
             Command::FrameShown { seq } => w.u8(10).u32(*seq),
+            Command::ImeDismissed => w.u8(11),
+            Command::Answer { id, ok, text } => {
+                w.u8(12).u32(*id).u8(*ok as u8).str(text, COMMAND_STR_MAX)
+            }
+            Command::Choose { id, cancel, picked } => {
+                let mut w = w.u8(13).u32(*id).u8(*cancel as u8).u32(picked.len() as u32);
+                for p in picked {
+                    w = w.u32(*p);
+                }
+                w
+            }
+            Command::Files { id, paths } => {
+                let mut w = w.u8(14).u32(*id).u32(paths.len() as u32);
+                for p in paths {
+                    w = w.str(p, COMMAND_STR_MAX);
+                }
+                w
+            }
+            Command::Clipboard { id, text } => w.u8(15).u32(*id).str(text, COMMAND_STR_MAX),
         }
         .0
     }
@@ -295,6 +410,25 @@ impl Command {
             },
             9 => Command::Text(r.str()?),
             10 => Command::FrameShown { seq: r.u32()? },
+            11 => Command::ImeDismissed,
+            12 => Command::Answer {
+                id: r.u32()?,
+                ok: r.bool()?,
+                text: r.str()?,
+            },
+            13 => Command::Choose {
+                id: r.u32()?,
+                cancel: r.bool()?,
+                picked: r.list(|r| r.u32())?,
+            },
+            14 => Command::Files {
+                id: r.u32()?,
+                paths: r.list(|r| r.str())?,
+            },
+            15 => Command::Clipboard {
+                id: r.u32()?,
+                text: r.str()?,
+            },
             _ => return Err(BadMessage),
         };
         r.end(c)
@@ -327,6 +461,55 @@ impl Event {
             Event::Title(t) => w.u8(3).str(t, EVENT_STR_MAX),
             Event::History { back, forward } => w.u8(4).u8(*back as u8).u8(*forward as u8),
             Event::Crashed(why) => w.u8(5).str(why, EVENT_STR_MAX),
+            Event::Keyboard { mode } => w.u8(6).u8(*mode),
+            Event::Dialog {
+                id,
+                kind,
+                text,
+                value,
+            } => {
+                // the text first: a prompt's default value takes what is left
+                let w = w
+                    .u8(7)
+                    .u32(*id)
+                    .u8(*kind as u8)
+                    .str(text, EVENT_STR_MAX / 2);
+                let left = EVENT_MAX - w.0.len() - 4;
+                w.str(value, left)
+            }
+            Event::Select {
+                id,
+                multiple,
+                items,
+            } => {
+                let head = w.u8(8).u32(*id).u8(*multiple as u8);
+                let mut rows = Vec::new();
+                let mut n = 0u32;
+                for it in items {
+                    let row = W(Vec::new())
+                        .u32(it.id)
+                        .u8(it.disabled as u8)
+                        .u8(it.selected as u8)
+                        .str(&it.label, 256)
+                        .0;
+                    // shortcut: a long list is cut to fit one event; page it if a real site needs more
+                    if head.0.len() + 4 + rows.len() + row.len() > EVENT_MAX {
+                        break;
+                    }
+                    rows.extend_from_slice(&row);
+                    n += 1;
+                }
+                let mut w = head.u32(n);
+                w.0.extend_from_slice(&rows);
+                w
+            }
+            Event::FilePick {
+                id,
+                multiple,
+                accept,
+            } => w.u8(9).u32(*id).u8(*multiple as u8).str(accept, 1024),
+            Event::ClipboardSet(t) => w.u8(10).str(t, EVENT_STR_MAX),
+            Event::ClipboardGet { id } => w.u8(11).u32(*id),
         }
         .0
     }
@@ -362,6 +545,38 @@ impl Event {
                 forward: r.bool()?,
             },
             5 => Event::Crashed(r.str()?),
+            6 => Event::Keyboard { mode: r.u8()? },
+            7 => Event::Dialog {
+                id: r.u32()?,
+                kind: match r.u8()? {
+                    0 => DialogKind::Alert,
+                    1 => DialogKind::Confirm,
+                    2 => DialogKind::Prompt,
+                    3 => DialogKind::Unload,
+                    _ => return Err(BadMessage),
+                },
+                text: r.str()?,
+                value: r.str()?,
+            },
+            8 => Event::Select {
+                id: r.u32()?,
+                multiple: r.bool()?,
+                items: r.list(|r| {
+                    Ok(SelectItem {
+                        id: r.u32()?,
+                        disabled: r.bool()?,
+                        selected: r.bool()?,
+                        label: r.str()?,
+                    })
+                })?,
+            },
+            9 => Event::FilePick {
+                id: r.u32()?,
+                multiple: r.bool()?,
+                accept: r.str()?,
+            },
+            10 => Event::ClipboardSet(r.str()?),
+            11 => Event::ClipboardGet { id: r.u32()? },
             _ => return Err(BadMessage),
         };
         r.end(e)
@@ -405,6 +620,25 @@ mod tests {
             },
             Command::Text("Բարեւ".to_string()),
             Command::FrameShown { seq: 7 },
+            Command::ImeDismissed,
+            Command::Answer {
+                id: 4,
+                ok: true,
+                text: "Ереван".to_string(),
+            },
+            Command::Choose {
+                id: 5,
+                cancel: false,
+                picked: vec![0, 3],
+            },
+            Command::Files {
+                id: 6,
+                paths: vec!["C:/Private/e0007008/upload/a.jpg".to_string()],
+            },
+            Command::Clipboard {
+                id: 1,
+                text: "copied".to_string(),
+            },
         ];
         for c in all {
             assert_eq!(Command::decode(&c.encode()), Ok(c));
@@ -434,6 +668,38 @@ mod tests {
                 forward: false,
             },
             Event::Crashed("out of memory".to_string()),
+            Event::Keyboard { mode: 3 },
+            Event::Dialog {
+                id: 2,
+                kind: DialogKind::Prompt,
+                text: "Your name?".to_string(),
+                value: "Anna".to_string(),
+            },
+            Event::Select {
+                id: 3,
+                multiple: false,
+                items: vec![
+                    SelectItem {
+                        id: SelectItem::GROUP,
+                        label: "Fruit".to_string(),
+                        disabled: false,
+                        selected: false,
+                    },
+                    SelectItem {
+                        id: 0,
+                        label: "Apricot".to_string(),
+                        disabled: false,
+                        selected: true,
+                    },
+                ],
+            },
+            Event::FilePick {
+                id: 4,
+                multiple: true,
+                accept: "jpg,png".to_string(),
+            },
+            Event::ClipboardSet("text".to_string()),
+            Event::ClipboardGet { id: 9 },
         ];
         for e in all {
             assert_eq!(Event::decode(&e.encode()), Ok(e));
@@ -452,6 +718,38 @@ mod tests {
     }
 
     #[test]
+    fn long_selects_and_dialogs_fit_one_event() {
+        let items = (0..500)
+            .map(|i| SelectItem {
+                id: i,
+                label: alloc::format!("Option number {i}"),
+                disabled: false,
+                selected: i == 0,
+            })
+            .collect();
+        let b = Event::Select {
+            id: 1,
+            multiple: false,
+            items,
+        }
+        .encode();
+        assert!(b.len() <= EVENT_MAX);
+        let Ok(Event::Select { items, .. }) = Event::decode(&b) else {
+            panic!()
+        };
+        assert!(items.len() > 50 && items[0].selected);
+        let b = Event::Dialog {
+            id: 1,
+            kind: DialogKind::Prompt,
+            text: "a".repeat(EVENT_MAX),
+            value: "b".repeat(EVENT_MAX),
+        }
+        .encode();
+        assert!(b.len() <= EVENT_MAX);
+        assert!(Event::decode(&b).is_ok());
+    }
+
+    #[test]
     fn malformed_messages_are_rejected() {
         assert_eq!(Command::decode(&[]), Err(BadMessage));
         assert_eq!(Command::decode(&[99]), Err(BadMessage));
@@ -461,8 +759,13 @@ mod tests {
             Event::decode(&[1, 0, 0, 0, 0, 2, 0, 0, 0, 0]),
             Err(BadMessage)
         ); // buffer 2
-        assert_eq!(Event::decode(&[3, 2, 0, 0, 0, 0xff, 0xfe]), Err(BadMessage));
         // not UTF-8
+        assert_eq!(Event::decode(&[3, 2, 0, 0, 0, 0xff, 0xfe]), Err(BadMessage));
+        // a huge count
+        assert_eq!(
+            Command::decode(&[13, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff]),
+            Err(BadMessage)
+        );
     }
 
     #[test]

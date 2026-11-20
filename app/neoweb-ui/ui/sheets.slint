@@ -1,0 +1,532 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// The page's sheets (browser-ui.md UI3, WB5a): a script prompt (br2-js-prompt), a <select>'s options, the file
+// upload choice (br2-upload) and Save password (br2-login-save). Each is the kit's Sheet: a scrim, Back or a tap
+// outside cancels. Alert, confirm and "Leave this page?" are the shell's QUERY, not drawn here.
+import { Theme, Glyph, Sheet } from "@neoui/kit.slint";
+import { FieldInput } from "@neoui/components/controls.slint";
+
+// One <select> row: an option, or a group's label (`group`).
+export struct SelectRow {
+    label: string,
+    group: bool,
+    disabled: bool,
+    selected: bool,
+}
+
+// A recent file under the upload choices.
+export struct RecentFile {
+    name: string,
+    detail: string,
+    image: bool,
+}
+
+// The boards' 40 dp pill: blue for the answer, grey for Cancel, text-only for a quiet choice.
+component Pill inherits Rectangle {
+    in property <string> text;
+    in property <int> kind; // 0 primary, 1 secondary, 2 text
+    in property <bool> enabled: true;
+    callback clicked;
+    height: 40 * Theme.dp;
+    min-width: 72 * Theme.dp;
+    border-radius: self.height / 2;
+    background: kind == 0 ? Theme.accent : kind == 1 ? #2a2e35 : transparent;
+    opacity: enabled ? 1 : 0.4;
+    accessible-role: button;
+    accessible-label: text;
+    HorizontalLayout {
+        padding-left: 16 * Theme.dp;
+        padding-right: 16 * Theme.dp;
+        Text {
+            text: root.text;
+            color: root.kind == 2 ? Theme.accent : Theme.text;
+            font-size: 14 * Theme.dp;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+
+    Rectangle {
+        border-radius: parent.border-radius;
+        background: t.pressed ? Theme.pressed : transparent;
+    }
+
+    t := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component Buttons inherits HorizontalLayout {
+    alignment: end;
+    spacing: 8 * Theme.dp;
+    padding-left: 16 * Theme.dp;
+    padding-right: 16 * Theme.dp;
+    padding-top: 12 * Theme.dp;
+    padding-bottom: 4 * Theme.dp;
+}
+
+// br2-js-prompt: "site", the question, a field (the keyboard comes up), Cancel · OK. It sits on the keyboard: the
+// app gives it the height above the keyboard.
+export component PromptSheet inherits Sheet {
+    in property <string> site;
+    in property <string> question;
+    in-out property <string> value;
+    callback answered(bool);
+    dismissed => {
+        root.answered(false);
+    }
+    Text {
+        x: 20 * Theme.dp;
+        width: parent.width - 40 * Theme.dp;
+        text: root.site;
+        color: Theme.text-secondary;
+        font-size: Theme.font-label;
+        font-weight: 600;
+        overflow: elide;
+    }
+
+    Text {
+        x: 20 * Theme.dp;
+        width: parent.width - 40 * Theme.dp;
+        text: root.question;
+        color: Theme.text;
+        font-size: Theme.font-body;
+        font-weight: 500;
+        wrap: word-wrap;
+        max-height: 5 * 22 * Theme.dp;
+        overflow: elide;
+    }
+
+    HorizontalLayout {
+        padding-left: 16 * Theme.dp;
+        padding-right: 16 * Theme.dp;
+        padding-top: 10 * Theme.dp;
+        Rectangle {
+            height: Theme.field-h;
+            border-radius: Theme.radius-small;
+            background: #1d2025;
+            border-width: 1px;
+            border-color: Theme.accent;
+            HorizontalLayout {
+                padding-left: 14 * Theme.dp;
+                padding-right: 14 * Theme.dp;
+                field := FieldInput {
+                    text <=> root.value;
+                    accepted => {
+                        root.open = false;
+                        root.answered(true);
+                    }
+                }
+            }
+        }
+    }
+
+    Buttons {
+        Pill {
+            text: "Cancel";
+            kind: 1;
+            clicked => {
+                root.close();
+            }
+        }
+
+        Pill {
+            text: "OK";
+            clicked => {
+                root.open = false;
+                root.answered(true);
+            }
+        }
+    }
+
+    changed open => {
+        if self.open {
+            field.focus();
+        }
+    }
+}
+
+// A <select>: pick one (a tap picks and closes), or several (taps toggle, Done answers). Groups' labels are
+// headers; disabled options are dim.
+export component SelectSheet inherits Sheet {
+    in property <[SelectRow]> rows;
+    in property <bool> multiple;
+    // the room the list may take (the sheet scrolls past it)
+    in property <length> max-list-h: 400 * Theme.dp;
+    callback picked(int);
+    callback done();
+    callback cancelled();
+    dismissed => {
+        root.cancelled();
+    }
+    Flickable {
+        height: min(root.max-list-h, list.preferred-height);
+        viewport-height: list.preferred-height;
+        list := VerticalLayout {
+            for r[i] in root.rows: Rectangle {
+                height: r.group ? Theme.section-h : Theme.list-row-h;
+                background: t.pressed && !r.group && !r.disabled ? Theme.pressed : transparent;
+                accessible-role: r.group ? text : root.multiple ? checkbox : radio-button;
+                accessible-checked: r.selected;
+                accessible-label: r.label;
+                HorizontalLayout {
+                    padding-left: 20 * Theme.dp;
+                    padding-right: 20 * Theme.dp;
+                    spacing: 14 * Theme.dp;
+                    Text {
+                        text: r.group ? r.label.to-uppercase() : r.label;
+                        color: r.group || r.disabled ? Theme.text-dim : Theme.text;
+                        font-size: r.group ? 12 * Theme.dp : Theme.font-body;
+                        font-weight: r.group ? 600 : 400;
+                        vertical-alignment: r.group ? bottom : center;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
+
+                    if !r.group: VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 22 * Theme.dp;
+                            height: self.width;
+                            border-radius: root.multiple ? 4 * Theme.dp : self.width / 2;
+                            border-width: 2 * Theme.dp;
+                            border-color: r.selected ? Theme.accent : Theme.text-dim;
+                            background: root.multiple && r.selected ? Theme.accent : transparent;
+                            if r.selected && !root.multiple: Rectangle {
+                                width: 10 * Theme.dp;
+                                height: self.width;
+                                border-radius: self.width / 2;
+                                background: Theme.accent;
+                            }
+                            if r.selected && root.multiple: Glyph {
+                                source: @image-url("@neoui/icons/sys/check.svg");
+                                size: 16 * Theme.dp;
+                                colorize: Theme.text;
+                            }
+                        }
+                    }
+                }
+
+                t := TouchArea {
+                    enabled: !r.group && !r.disabled;
+                    clicked => {
+                        root.picked(i);
+                        if !root.multiple {
+                            root.open = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.multiple: Buttons {
+        Pill {
+            text: "Done";
+            clicked => {
+                root.open = false;
+                root.done();
+            }
+        }
+    }
+}
+
+// One of the three choices on br2-upload.
+component Source inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <string> detail;
+    callback clicked;
+    height: 72 * Theme.dp;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: #ffffff14;
+    background: t.pressed ? Theme.pressed : Theme.card;
+    VerticalLayout {
+        alignment: center;
+        spacing: 4 * Theme.dp;
+        HorizontalLayout {
+            alignment: center;
+            Glyph {
+                source: root.icon;
+                size: 22 * Theme.dp;
+                colorize: Theme.text-secondary;
+            }
+        }
+
+        Text {
+            text: root.label;
+            color: Theme.text;
+            font-size: 14 * Theme.dp;
+            font-weight: 500;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: root.detail;
+            color: Theme.text-dim;
+            font-size: 12 * Theme.dp;
+            horizontal-alignment: center;
+        }
+    }
+
+    t := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// br2-upload: Photos · Files · Memory card, then the recent files. `chosen(i)`: 0 Photos, 1 Files, 2 Memory card,
+// 10 + n the n-th recent file.
+export component UploadSheet inherits Sheet {
+    in property <[RecentFile]> recent;
+    callback chosen(int);
+    callback cancelled();
+    title: "";
+    dismissed => {
+        root.cancelled();
+    }
+    Text {
+        x: 20 * Theme.dp;
+        height: 40 * Theme.dp;
+        text: "Choose a file";
+        color: Theme.text;
+        font-size: Theme.font-body;
+        font-weight: 600;
+        vertical-alignment: center;
+    }
+
+    HorizontalLayout {
+        padding-left: 16 * Theme.dp;
+        padding-right: 16 * Theme.dp;
+        padding-bottom: 6 * Theme.dp;
+        spacing: 10 * Theme.dp;
+        Source {
+            icon: @image-url("@neoui/icons/sys/image.svg");
+            label: "Photos";
+            detail: "Pictures";
+            clicked => {
+                root.open = false;
+                root.chosen(0);
+            }
+        }
+
+        Source {
+            icon: @image-url("@neoui/icons/sys/folder.svg");
+            label: "Files";
+            detail: "Phone memory";
+            clicked => {
+                root.open = false;
+                root.chosen(1);
+            }
+        }
+
+        Source {
+            icon: @image-url("@neoui/icons/sys/sdcard.svg");
+            label: "Memory card";
+            detail: "E:";
+            clicked => {
+                root.open = false;
+                root.chosen(2);
+            }
+        }
+    }
+
+    if root.recent.length > 0: Text {
+        x: 20 * Theme.dp;
+        height: Theme.section-h - 6 * Theme.dp;
+        text: "RECENT";
+        color: Theme.text-dim;
+        font-size: 12 * Theme.dp;
+        font-weight: 600;
+        letter-spacing: 0.78 * Theme.dp;
+        vertical-alignment: bottom;
+    }
+    for f[i] in root.recent: Rectangle {
+        height: Theme.list-row-h;
+        background: rt.pressed ? Theme.pressed : transparent;
+        if i > 0: Rectangle {
+            x: 56 * Theme.dp;
+            y: 0;
+            width: parent.width - self.x;
+            height: 1px;
+            background: #ffffff12;
+        }
+        HorizontalLayout {
+            padding-left: 20 * Theme.dp;
+            padding-right: 12 * Theme.dp;
+            spacing: 16 * Theme.dp;
+            VerticalLayout {
+                alignment: center;
+                Glyph {
+                    source: f.image ? @image-url("@neoui/icons/sys/image.svg") : @image-url("@neoui/icons/sys/doc.svg");
+                    size: 20 * Theme.dp;
+                    colorize: Theme.text-secondary;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 2 * Theme.dp;
+                Text {
+                    text: f.name;
+                    color: Theme.text;
+                    font-size: Theme.font-body;
+                    overflow: elide;
+                }
+
+                Text {
+                    text: f.detail;
+                    color: Theme.text-secondary;
+                    font-size: Theme.font-label;
+                }
+            }
+        }
+
+        rt := TouchArea {
+            clicked => {
+                root.open = false;
+                root.chosen(10 + i);
+            }
+        }
+    }
+}
+
+// br2-login-save (B11): Save stays off until there is a secure store; Never · Not now answer.
+export component LoginSheet inherits Sheet {
+    in property <string> site;
+    in property <string> user;
+    callback answered(int); // 0 Never, 1 Not now
+    dismissed => {
+        root.answered(1);
+    }
+    HorizontalLayout {
+        padding-left: 20 * Theme.dp;
+        padding-right: 20 * Theme.dp;
+        padding-top: 8 * Theme.dp;
+        spacing: 12 * Theme.dp;
+        Rectangle {
+            width: 40 * Theme.dp;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: #2a2e35;
+            Glyph {
+                source: @image-url("@neoui/icons/sys/lock.svg");
+                size: 20 * Theme.dp;
+                colorize: Theme.text-secondary;
+            }
+        }
+
+        Text {
+            text: "Save password for " + root.site + "?";
+            color: Theme.text;
+            font-size: 17 * Theme.dp;
+            font-weight: 600;
+            wrap: word-wrap;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 20 * Theme.dp;
+        padding-right: 20 * Theme.dp;
+        padding-top: 10 * Theme.dp;
+        Rectangle {
+            border-radius: Theme.radius;
+            background: Theme.card;
+            border-width: 1px;
+            border-color: #ffffff14;
+            VerticalLayout {
+                padding-left: 14 * Theme.dp;
+                padding-right: 14 * Theme.dp;
+                padding-top: 4 * Theme.dp;
+                padding-bottom: 4 * Theme.dp;
+                HorizontalLayout {
+                    height: 44 * Theme.dp;
+                    spacing: 12 * Theme.dp;
+                    Text {
+                        width: 80 * Theme.dp;
+                        text: "Username";
+                        color: Theme.text-dim;
+                        font-size: Theme.font-label;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: root.user;
+                        color: Theme.text;
+                        font-size: 15 * Theme.dp;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: #ffffff12;
+                }
+
+                HorizontalLayout {
+                    height: 44 * Theme.dp;
+                    spacing: 12 * Theme.dp;
+                    Text {
+                        width: 80 * Theme.dp;
+                        text: "Password";
+                        color: Theme.text-dim;
+                        font-size: Theme.font-label;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "••••••••••";
+                        color: Theme.text;
+                        font-size: 15 * Theme.dp;
+                        letter-spacing: 2 * Theme.dp;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    Text {
+        x: 20 * Theme.dp;
+        width: parent.width - 40 * Theme.dp;
+        height: 26 * Theme.dp;
+        text: "Kept on this phone only (C:\\private\\<NEOWEB SID>\\).";
+        color: Theme.text-dim;
+        font-size: 13 * Theme.dp;
+        vertical-alignment: bottom;
+    }
+
+    Buttons {
+        Pill {
+            text: "Never";
+            kind: 2;
+            clicked => {
+                root.open = false;
+                root.answered(0);
+            }
+        }
+
+        Pill {
+            text: "Not now";
+            kind: 1;
+            clicked => {
+                root.open = false;
+                root.answered(1);
+            }
+        }
+
+        // B11: no secure store yet
+        Pill {
+            text: "Save";
+            enabled: false;
+        }
+    }
+}

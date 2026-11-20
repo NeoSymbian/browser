@@ -9,8 +9,9 @@ import "@neoui/fonts/DejaVuSans.ttf";
 import { Theme, Kit, Scroll, Glyph, HeaderButton, KeyboardFocus } from "@neoui/kit.slint";
 import { FieldInput } from "@neoui/components/controls.slint";
 import { CrashedPage, FakePages, WebPage } from "pages.slint";
+import { PromptSheet, SelectSheet, UploadSheet, LoginSheet, SelectRow, RecentFile } from "sheets.slint";
 
-export { Theme, Kit, Scroll, KeyboardFocus }
+export { Theme, Kit, Scroll, KeyboardFocus, SelectRow, RecentFile }
 
 // A row under the address bar while editing (neoweb-core input::Suggestion): kind 0 history, 1 bookmark, 2 search.
 export struct Suggest {
@@ -28,7 +29,9 @@ export struct ShortcutTile {
 // What the app's Rust shows; taps come back as act(action, value):
 // "back" "forward" "search" "tabs" "options" (the footer), "address" "site-info" "bookmark" "reload" "stop" (the
 // header), "shortcut" i, "recent" i, "edit-shortcuts" (the start page), "edited" and "go" (typing, Enter in edit mode), "cancel-edit",
-// "suggestion" i, "scroll" dp (the page's offset from its top), "tick" (every 100 ms while loading).
+// "suggestion" i, "scroll" dp (the page's offset from its top), "tick" (every 100 ms while loading); the sheets (WB5a):
+// "prompt" 1 OK / 0 Cancel, "select" i (a row), "select-done", "select-cancel", "upload" i (0 Photos, 1 Files,
+// 2 Memory card, 10 + n a recent file), "upload-cancel", "login" 0 Never / 1 Not now.
 export global BrowserState {
     // 0 Start, 1–3 FakePage boards in host previews, 4 engine frame, 5 crashed
     in property <int> page;
@@ -52,6 +55,15 @@ export global BrowserState {
     in property <bool> chrome-shown: true;
     // the page's scroll position (Flickable content-y: 0 at the top, negative further down)
     in-out property <length> page-y;
+    // WB5a: the system keyboard over the app (surface px, 0 = none). It covers the footer; the page ends above it.
+    in property <int> keyboard-px;
+    // the sheets' contents; BrowserApp.show-sheet opens one
+    in property <string> sheet-site;
+    in property <string> sheet-text;
+    in-out property <string> sheet-value;
+    in property <[SelectRow]> select-rows;
+    in property <bool> select-multiple;
+    in property <[RecentFile]> recent-files;
     callback act(string, int);
 }
 
@@ -446,7 +458,8 @@ export component BrowserApp inherits Window {
     // neoapp sizes the window in surface pixels. Use the same bounds for the image, Resize and page touches.
     out property <int> page-top-px: round(Theme.header-h / 1px);
     out property <int> page-width-px: round(root.width / 1px);
-    out property <int> page-height-px: max(0, round((root.height - Theme.footer-h) / 1px) - page-top-px);
+    // br2-form: with the keyboard up the page ends at the keyboard (679 − 48 − 276 = 355 dp), over the footer
+    out property <int> page-height-px: max(0, round((root.height - (BrowserState.keyboard-px > 0 ? BrowserState.keyboard-px * 1px : Theme.footer-h)) / 1px) - page-top-px);
     if BrowserState.editing: Suggestions {
         y: Theme.header-h;
         height: root.height - Theme.header-h;
@@ -519,6 +532,62 @@ export component BrowserApp inherits Window {
         visible: false;
         font-family: "DejaVu Sans";
         text: "–—‘’‚“”„…•·′″‹›«»€£¥©®™°±×÷§¶†‡№";
+    }
+
+    // The page's sheets, over everything (UI3): 0 closes them (unanswered), 1 prompt, 2 select, 3 upload, 4 save
+    // password. Each answers with act() and closes itself.
+    public function show-sheet(n: int) {
+        prompt.open = n == 1;
+        select.open = n == 2;
+        upload.open = n == 3;
+        login.open = n == 4;
+    }
+    out property <bool> sheet-open: prompt.open || select.open || upload.open || login.open;
+    prompt := PromptSheet {
+        // br2-js-prompt: it sits on the keyboard
+        y: 0;
+        height: root.height - BrowserState.keyboard-px * 1px;
+        site: BrowserState.sheet-site;
+        question: BrowserState.sheet-text;
+        value <=> BrowserState.sheet-value;
+        answered(ok) => {
+            BrowserState.act("prompt", ok ? 1 : 0);
+        }
+    }
+
+    select := SelectSheet {
+        rows: BrowserState.select-rows;
+        multiple: BrowserState.select-multiple;
+        max-list-h: root.height * 0.6;
+        picked(i) => {
+            if !BrowserState.select-multiple {
+                }
+            BrowserState.act("select", i);
+        }
+        done => {
+            BrowserState.act("select-done", 0);
+        }
+        cancelled => {
+            BrowserState.act("select-cancel", 0);
+        }
+    }
+
+    upload := UploadSheet {
+        recent: BrowserState.recent-files;
+        chosen(i) => {
+            BrowserState.act("upload", i);
+        }
+        cancelled => {
+            BrowserState.act("upload-cancel", 0);
+        }
+    }
+
+    login := LoginSheet {
+        site: BrowserState.sheet-site;
+        user: BrowserState.sheet-text;
+        answered(i) => {
+            BrowserState.act("login", i);
+        }
     }
 
     // the stand-in engine's load (neoweb-core chrome::Loading)

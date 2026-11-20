@@ -6,12 +6,14 @@
 //! - [`Header`] / [`count_label`]: what the address bar and the footer show (`br2-footer-states`);
 //! - [`start`]: the start page's shortcuts (`br2-start`);
 //! - [`input`]: the address bar's text and suggestions (`br2-address`); [`chrome`]: hiding on scroll, loading;
+//! - [`controls`]: the page's controls (Back order, script dialogs, uploads; WB5a);
 //! - [`Engine`] / [`FakeEngine`]: the stand-in used by the host tests.
 #![no_std]
 
 extern crate alloc;
 
 pub mod chrome;
+pub mod controls;
 pub mod input;
 pub mod start;
 
@@ -34,7 +36,7 @@ pub struct LiveTab {
 }
 
 impl LiveTab {
-    /// Apply a protocol event to the tab. Frame pixels are handled by the UI process.
+    /// Apply a protocol event to the tab. Frame pixels and controls are handled by the UI process.
     pub fn apply(&mut self, event: Event) {
         if self.crashed {
             return;
@@ -53,7 +55,8 @@ impl LiveTab {
                 self.back = false;
                 self.forward = false;
             }
-            Event::Frame { .. } => {}
+            // frames and the page's controls are NEOWEB's (symbian/neoweb)
+            _ => {}
         }
     }
 }
