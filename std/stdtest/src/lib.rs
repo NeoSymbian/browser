@@ -33,6 +33,8 @@ macro_rules! check {
     };
 }
 
+mod smp;
+
 fn ms(d: Duration) -> u128 {
     d.as_millis()
 }
@@ -489,6 +491,15 @@ fn main() -> i32 {
         ("hashmap_random", hashmap_random),
         ("float_fmt", float_fmt),
         ("allocator", allocator),
+        // US1 (docs user-side-smp.md): P.I.P.S. under 8 cores; printf_g first, while gdtoa's caches are still empty
+        ("smp_printf_g", smp::printf_g_race),
+        ("smp_condvar_timeout", smp::condvar_timeout_race),
+        ("smp_static_init", smp::static_init_race),
+        ("smp_once", smp::once_race),
+        ("smp_stdio", smp::stdio_race),
+        ("smp_shared_fd", smp::shared_fd_race),
+        ("smp_sem_timeout", smp::sem_timeout_race),
+        // last: it panics (aborts) where loopback sockets fail
         ("net_loopback", net_loopback),
     ];
     let (mut ok, mut failed, mut skipped) = (0, 0, 0);
