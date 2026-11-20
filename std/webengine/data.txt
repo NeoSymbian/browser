@@ -20,3 +20,7 @@ Resource\NeoWeb\Pages\photo.jpg=neoweb/pages/photo.jpg
 Resource\NeoWeb\Pages\text.html=neoweb/pages/text.html
 Resource\NeoWeb\Pages\webfont.ttf=neoweb/pages/webfont.ttf
 Resource\NeoWeb\Pages\hello.html=neoweb/pages/hello.html
+Resource\NeoWeb\Pages\t-scripts.html=neoweb/pages/t-scripts.html
+Resource\NeoWeb\Pages\t-fonts.html=neoweb/pages/t-fonts.html
+Resource\NeoWeb\Pages\t-flex.html=neoweb/pages/t-flex.html
+Resource\NeoWeb\Pages\t-table.html=neoweb/pages/t-table.html
