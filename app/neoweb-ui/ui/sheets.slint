@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // The page's sheets (browser-ui.md UI3, WB5a): a script prompt (br2-js-prompt), a <select>'s options, the file
 // upload choice (br2-upload) and Save password (br2-login-save). Each is the kit's Sheet: a scrim, Back or a tap
-// outside cancels. Alert, confirm and "Leave this page?" are the shell's QUERY, not drawn here.
-import { Theme, Glyph, Sheet } from "@neoui/kit.slint";
+// outside cancels. Alert, confirm and "Leave this page?" are the shell's QUERY, not drawn here. UI2: the Options panel
+// (br2-menu) and the link's long-press menu (br2-link-menu, a popup with the same layer rules).
+import { Theme, Kit, Glyph, Sheet } from "@neoui/kit.slint";
 import { FieldInput } from "@neoui/components/controls.slint";
 
 // One <select> row: an option, or a group's label (`group`).
@@ -527,6 +528,281 @@ export component LoginSheet inherits Sheet {
         Pill {
             text: "Save";
             enabled: false;
+        }
+    }
+}
+
+// br2-menu's section label: PAGE, PAGES.
+component Section inherits HorizontalLayout {
+    in property <string> text;
+    height: 38 * Theme.dp;
+    padding-left: 20 * Theme.dp;
+    padding-bottom: 8 * Theme.dp;
+    Text {
+        text: root.text;
+        color: Theme.text-dim;
+        font-size: 12 * Theme.dp;
+        font-weight: 600;
+        letter-spacing: 0.78 * Theme.dp;
+        vertical-alignment: bottom;
+    }
+}
+
+// One tile: a 48 dp box with the glyph, the label under it; `on` (Desktop site) tints it with the accent.
+component Tile inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> on;
+    callback clicked;
+    height: 74 * Theme.dp;
+    accessible-role: button;
+    accessible-label: label;
+    Rectangle {
+        y: 0;
+        width: 48 * Theme.dp;
+        height: self.width;
+        border-radius: 14 * Theme.dp;
+        background: root.on ? Theme.tab-pill : Theme.dialog-button;
+        Glyph {
+            source: root.icon;
+            size: Theme.action-glyph;
+            colorize: root.on ? Theme.accent : Theme.text;
+        }
+
+        Rectangle {
+            border-radius: parent.border-radius;
+            background: t.pressed ? Theme.pressed : transparent;
+        }
+    }
+
+    Text {
+        x: 0;
+        y: 54 * Theme.dp;
+        width: parent.width;
+        text: root.label;
+        color: root.on ? Theme.accent : Theme.text-secondary;
+        font-size: 12.5 * Theme.dp;
+        horizontal-alignment: center;
+    }
+
+    t := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// 4 columns, 74 dp tiles, 10 dp between rows; `first` numbers the tiles for `chosen`.
+component Tiles inherits Rectangle {
+    in property <[{icon: image, label: string}]> tiles;
+    in property <int> first;
+    in property <bool> desktop-site;
+    callback chosen(int);
+    property <length> cell: (self.width - 24 * Theme.dp) / 4;
+    height: Math.ceil(self.tiles.length / 4) * 84 * Theme.dp - 10 * Theme.dp;
+    for t[i] in root.tiles: Tile {
+        x: 12 * Theme.dp + Math.mod(i, 4) * root.cell;
+        y: Math.floor(i / 4) * 84 * Theme.dp;
+        width: root.cell;
+        icon: t.icon;
+        label: t.label;
+        on: root.first + i == 4 && root.desktop-site;
+        clicked => {
+            root.chosen(root.first + i);
+        }
+    }
+}
+
+// br2-menu: the Options panel. `chosen(i)`: 0 New tab, 1 Find in page, 2 Share, 3 Copy link, 4 Desktop site,
+// 5 Bookmarks, 6 History, 7 Downloads, 8 Settings. A tile closes the panel.
+export component OptionsSheet inherits Sheet {
+    in property <bool> desktop-site;
+    callback chosen(int);
+    // the kit's handle takes 6 dp more than the board's; this first label gives them back
+    Section {
+        text: "PAGE";
+        height: 32 * Theme.dp;
+    }
+
+    Tiles {
+        first: 0;
+        desktop-site: root.desktop-site;
+        tiles: [
+            { icon: @image-url("@neoui/icons/sys/add.svg"), label: "New tab" },
+            { icon: @image-url("@neoui/icons/sys/search.svg"), label: "Find in page" },
+            { icon: @image-url("@neoui/icons/sys/share.svg"), label: "Share" },
+            { icon: @image-url("icons/link.svg"), label: "Copy link" },
+            { icon: @image-url("icons/desktop.svg"), label: "Desktop site" },
+        ];
+        chosen(i) => {
+            root.open = false;
+            root.chosen(i);
+        }
+    }
+
+    Section {
+        text: "PAGES";
+    }
+
+    Tiles {
+        first: 5;
+        tiles: [
+            { icon: @image-url("@neoui/icons/sys/star.svg"), label: "Bookmarks" },
+            { icon: @image-url("@neoui/icons/sys/recents.svg"), label: "History" },
+            { icon: @image-url("icons/download.svg"), label: "Downloads" },
+            { icon: @image-url("@neoui/icons/sys/options.svg"), label: "Settings" },
+        ];
+        chosen(i) => {
+            root.open = false;
+            root.chosen(i);
+        }
+    }
+
+    // the board's panel is 350 dp (its last line is a design note)
+    Rectangle {
+        height: 18 * Theme.dp;
+    }
+}
+
+// br2-link-menu: a link's long-press menu, a 312 dp popup over a light scrim at `top` (kept on screen): the link's
+// title and address, then Open in new tab, Copy link, Download link, Share (`chosen` 0..3). Back or a tap outside
+// closes it (`cancelled`).
+export component LinkMenu inherits Rectangle {
+    in property <string> title;
+    in property <string> url;
+    in property <length> top;
+    in-out property <bool> open;
+    callback chosen(int);
+    callback cancelled();
+    visible: root.open;
+
+    public function close() {
+        root.open = false;
+        root.cancelled();
+    }
+
+    property <int> level;
+    property <int> seq: Kit.back-seq;
+    changed open => {
+        if self.open {
+            self.level = Kit.push();
+        } else if self.level > 0 {
+            Kit.pop();
+            self.level = 0;
+        }
+    }
+    changed seq => {
+        if Kit.take-back(self.level) {
+            root.close();
+        }
+    }
+
+    Rectangle {
+        background: #00000066;
+        TouchArea {
+            clicked => {
+                root.close();
+            }
+        }
+    }
+
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: max(8 * Theme.dp, min(parent.height - self.height - 8 * Theme.dp, root.top));
+        width: 312 * Theme.dp;
+        height: col.preferred-height;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.card-border;
+        background: Theme.sheet;
+        TouchArea { }
+
+        col := VerticalLayout {
+            padding-top: 6 * Theme.dp;
+            padding-bottom: 6 * Theme.dp;
+            HorizontalLayout {
+                padding-left: 16 * Theme.dp;
+                padding-right: 16 * Theme.dp;
+                padding-top: 8 * Theme.dp;
+                padding-bottom: 10 * Theme.dp;
+                spacing: 12 * Theme.dp;
+                VerticalLayout {
+                    alignment: start;
+                    Glyph {
+                        source: @image-url("icons/link.svg");
+                        size: 20 * Theme.dp;
+                        colorize: Theme.text-secondary;
+                    }
+                }
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 2 * Theme.dp;
+                    Text {
+                        font-family: "DejaVu Sans";
+                        text: root.title;
+                        color: Theme.text;
+                        font-size: 14 * Theme.dp;
+                        font-weight: 600;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        font-family: "DejaVu Sans";
+                        text: root.url;
+                        color: Theme.text-secondary;
+                        font-size: 12.5 * Theme.dp;
+                        wrap: char-wrap;
+                    }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Theme.header-hairline;
+            }
+
+            Rectangle {
+                height: 4 * Theme.dp;
+            }
+
+            for r[i] in [
+                { icon: @image-url("@neoui/icons/sys/tabs.svg"), label: "Open in new tab" },
+                { icon: @image-url("icons/copy.svg"), label: "Copy link" },
+                { icon: @image-url("icons/download.svg"), label: "Download link" },
+                { icon: @image-url("@neoui/icons/sys/share.svg"), label: "Share" },
+            ]: Rectangle {
+                height: 48 * Theme.dp;
+                background: rt.pressed ? Theme.pressed : transparent;
+                accessible-role: button;
+                accessible-label: r.label;
+                HorizontalLayout {
+                    padding-left: 16 * Theme.dp;
+                    padding-right: 16 * Theme.dp;
+                    spacing: 14 * Theme.dp;
+                    Glyph {
+                        y: (parent.height - self.height) / 2;
+                        source: r.icon;
+                        size: 22 * Theme.dp;
+                        colorize: Theme.text-secondary;
+                    }
+
+                    Text {
+                        text: r.label;
+                        color: Theme.text;
+                        font-size: Theme.font-body;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+
+                rt := TouchArea {
+                    clicked => {
+                        root.open = false;
+                        root.chosen(i);
+                    }
+                }
+            }
         }
     }
 }
