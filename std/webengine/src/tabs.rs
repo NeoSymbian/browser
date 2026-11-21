@@ -70,6 +70,11 @@ impl Tabs {
         }
         t.view.show();
         t.view.set_focused(true);
+        // a new page has nothing to tell yet (an empty address would blank NEOWEB's)
+        if t.url.is_empty() {
+            self.shown = Some(id);
+            return Vec::new();
+        }
         let events = vec![
             Event::Url(t.url.clone()),
             Event::Title(t.title.clone()),

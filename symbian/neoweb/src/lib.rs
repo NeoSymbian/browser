@@ -1206,7 +1206,7 @@ fn run() -> Result<(), i32> {
                             height,
                             ..
                         }) => {
-                            if !m.live.url.is_empty() {
+                            if m.showing_web {
                                 let t = e32::time::fast_counter();
                                 let image = connection.frame(buffer, width, height)?;
                                 m.frame = Some(image.clone());
@@ -1240,8 +1240,9 @@ fn run() -> Result<(), i32> {
                             None => Ok(()),
                         },
                         Update::Event(event) => {
-                            // The engine may publish its initial blank document before the first Load.
-                            if !m.live.url.is_empty() {
+                            // The engine may publish its initial blank document before the first Load: only a shown
+                            // page takes events (an empty address never blanks the one typed).
+                            if m.showing_web && !matches!(&event, Event::Url(u) if u.is_empty()) {
                                 m.apply(event);
                                 m.show(&ui);
                             }
@@ -1257,6 +1258,7 @@ fn run() -> Result<(), i32> {
                 m.crash(&ui, alloc::format!("engine IPC {}", error));
             }
             while let Some((action, i)) = actions.borrow_mut().pop_front() {
+                dprintln!("neoweb: act {} {}", action, i);
                 let command = if action == "upload" {
                     m.pick(&app, i)
                 } else if m.act2(&app, &ui, &action, i) {

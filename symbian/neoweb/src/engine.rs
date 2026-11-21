@@ -104,6 +104,14 @@ impl Engine {
     }
 
     pub fn send(&self, command: Command) -> Result<(), i32> {
+        // what NEOWEB asks of the engine, on the debug log (not the frequent ones)
+        if !matches!(
+            command,
+            Command::Touch { .. } | Command::FrameShown { .. } | Command::Key { .. }
+        ) {
+            let s = alloc::format!("{:?}", command);
+            e32::dprintln!("neoweb: -> {}", &s[..s.floor_char_boundary(120)]);
+        }
         let bytes = command.encode();
         let descriptor = TPtrC8::new(&bytes);
         let mut args = TIpcArgs::new();
@@ -179,6 +187,12 @@ impl Watch {
             let bytes = self.bytes.get(..n as usize).ok_or(KERR_CORRUPT)?;
             Event::decode(bytes).map_err(|_| KERR_CORRUPT)
         });
+        if let Ok(e) = &event
+            && !matches!(e, Event::Frame { .. } | Event::Download { .. })
+        {
+            let s = alloc::format!("{:?}", e);
+            e32::dprintln!("neoweb: <- {}", &s[..s.floor_char_boundary(120)]);
+        }
         (self, event)
     }
 }
