@@ -83,6 +83,7 @@ export component PromptSheet inherits Sheet {
         x: 20 * Theme.dp;
         width: parent.width - 40 * Theme.dp;
         text: root.site;
+        font-family: "DejaVu Sans";
         color: Theme.text-secondary;
         font-size: Theme.font-label;
         font-weight: 600;
@@ -93,6 +94,7 @@ export component PromptSheet inherits Sheet {
         x: 20 * Theme.dp;
         width: parent.width - 40 * Theme.dp;
         text: root.question;
+        font-family: "DejaVu Sans";
         color: Theme.text;
         font-size: Theme.font-body;
         font-weight: 500;
@@ -146,6 +148,7 @@ export component PromptSheet inherits Sheet {
     changed open => {
         if self.open {
             field.focus();
+            field.set-selection-offsets(root.value.character-count, root.value.character-count);
         }
     }
 }
@@ -424,6 +427,7 @@ export component LoginSheet inherits Sheet {
 
         Text {
             text: "Save password for " + root.site + "?";
+            font-family: "DejaVu Sans";
             color: Theme.text;
             font-size: 17 * Theme.dp;
             font-weight: 600;
@@ -460,6 +464,7 @@ export component LoginSheet inherits Sheet {
 
                     Text {
                         text: root.user;
+                        font-family: "DejaVu Sans";
                         color: Theme.text;
                         font-size: 15 * Theme.dp;
                         vertical-alignment: center;

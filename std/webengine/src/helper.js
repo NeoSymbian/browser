@@ -32,7 +32,9 @@
     return best;
   }
 
-  const word = /[\p{L}\p{N}_'’-]/u;
+  // a word's character: a letter (it has two cases: Latin, Armenian, Cyrillic, Greek…), a digit, _ ' ’ -. No
+  // \p{L}: this SpiderMonkey has no ICU, so a Unicode property escape would stop the whole helper.
+  const word = { test: c => !!c && (c.toLowerCase() !== c.toUpperCase() || /[0-9_'’-]/.test(c)) };
   // the selection's ends as [ax, ay, bx, by, lineHeight] device px (the ends' tops), or [] when nothing is selected
   function ends() {
     const s = getSelection();
@@ -47,12 +49,12 @@
   function findAll(q) {
     matches = [];
     if (!q) return;
-    const needle = q.toLocaleLowerCase();
+    const needle = q.toLowerCase();
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
       const p = n.parentElement;
       if (p && /^(SCRIPT|STYLE|NOSCRIPT)$/.test(p.tagName)) continue;
-      const hay = n.data.toLocaleLowerCase();
+      const hay = n.data.toLowerCase();
       for (let i = hay.indexOf(needle); i >= 0; i = hay.indexOf(needle, i + needle.length))
         matches.push([n, i, i + q.length]);
       if (matches.length >= 1000) break; // shortcut: a cap for huge pages

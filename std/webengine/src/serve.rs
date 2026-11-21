@@ -923,7 +923,10 @@ fn items(v: &Result<JSValue, servo::JavaScriptEvaluationError>) -> Vec<JSValue> 
     match v {
         Ok(JSValue::Array(a)) => a.clone(),
         Ok(other) => vec![other.clone()],
-        Err(_) => Vec::new(),
+        Err(e) => {
+            println!("neowebe: helper failed: {e:?}");
+            Vec::new()
+        }
     }
 }
 

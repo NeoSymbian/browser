@@ -238,7 +238,7 @@ impl Model {
                 }
             }
             "new-tab" => self.switch(ui, |t| t.open(START)),
-            "tabs-options" => ui.invoke_show_sheet(6),
+            "tabs-options" | "options" => ui.invoke_show_sheet(6),
             "tabs-back" => {}
             "option" => match i {
                 0 => self.switch(ui, |t| t.open(START)),
@@ -616,7 +616,11 @@ impl Model {
     /// answer to send at once.
     fn control(&mut self, app: &App, ui: &BrowserApp, event: Event) -> Option<Command> {
         let s = ui.global::<BrowserState>();
-        let site = Header::of(&self.live.url).domain;
+        // a dialog names its site; a page on the phone itself has none
+        let site = match Header::of(&self.live.url).domain {
+            d if d.is_empty() || d.contains('/') => String::from("This page"),
+            d => d,
+        };
         match event {
             Event::Keyboard { mode } => self.page_keys = mode,
             Event::Dialog {
