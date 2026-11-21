@@ -331,7 +331,10 @@ impl Model {
                 match i {
                     0 => self.switch(ui, |t| t.open(&url)),
                     1 => self.copy_link(app, &url),
-                    // 2 Download link: WB5d
+                    2 => {
+                        self.out.push(Command::Download { url });
+                        self.note = Some("Downloading…");
+                    }
                     3 => self.share(app, &url),
                     _ => {}
                 }
