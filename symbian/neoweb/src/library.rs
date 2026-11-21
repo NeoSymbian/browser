@@ -529,9 +529,13 @@ impl Library {
         let d = id
             .checked_sub(NOTIFY_BASE)
             .and_then(|m| self.downloads.get(m));
+        // action 0 is the entry itself, 1 its first button (Open)
         match d {
-            Some(d) if action == 0 && d.state == Done::Done => open_in_files(app, &d.path),
-            _ => ui.invoke_show_library(3),
+            Some(d) if action == 1 && d.state == Done::Done => open_in_files(app, &d.path),
+            _ => {
+                ui.invoke_show_library(3);
+                self.show(ui);
+            }
         }
     }
 }

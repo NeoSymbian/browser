@@ -1200,7 +1200,10 @@ fn run() -> Result<(), i32> {
                         AppEvent::Notified { id, action } => {
                             m.lib.notified(&app, &ui, id, action.into())
                         }
-                        AppEvent::Open { page: 3 } => ui.invoke_show_library(3),
+                        AppEvent::Open { page: 3 } => {
+                            ui.invoke_show_library(3);
+                            m.lib.show(&ui);
+                        }
                         AppEvent::Answer { i } => {
                             if let Some(id) = m.query.take() {
                                 result = connection.send(Command::Answer {
