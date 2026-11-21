@@ -2197,7 +2197,7 @@ dependencies = [
 [[package]]
 name = "glsl-to-cxx"
 version = "0.70.1"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "glsl",
 ]
@@ -4032,7 +4032,7 @@ dependencies = [
 [[package]]
 name = "peek-poke"
 version = "0.3.0"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "euclid",
  "peek-poke-derive",
@@ -4041,7 +4041,7 @@ dependencies = [
 [[package]]
 name = "peek-poke-derive"
 version = "0.3.0"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7123,7 +7123,7 @@ checksum = "e454d048db5527d000bfddb77bd072bbf3a1e2ae785f16d9bd116e07c2ab45eb"
 [[package]]
 name = "swgl"
 version = "0.70.1"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "cc",
  "gleam",
@@ -8182,7 +8182,7 @@ dependencies = [
 [[package]]
 name = "webrender"
 version = "0.70.1"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "allocator-api2",
  "bincode",
@@ -8217,7 +8217,7 @@ dependencies = [
 [[package]]
 name = "webrender_api"
 version = "0.70.0"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "app_units",
  "bitflags 2.13.2",
@@ -8236,7 +8236,7 @@ dependencies = [
 [[package]]
 name = "webrender_build"
 version = "0.70.1"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "bitflags 2.13.2",
  "lazy_static",
@@ -8598,7 +8598,7 @@ dependencies = [
 [[package]]
 name = "wr_glyph_rasterizer"
 version = "0.70.1"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "core-foundation 0.9.4",
  "core-graphics",
@@ -8622,7 +8622,7 @@ dependencies = [
 [[package]]
 name = "wr_malloc_size_of"
 version = "0.2.2"
-source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#4300cf35618a0cd335d1945cd2cef8370d8e95e7"
+source = "git+https://github.com/NeoSymbian/webrender?branch=wb5#8f6e262dc0a40c920f2876b83f0055bc27ed54ed"
 dependencies = [
  "app_units",
  "euclid",

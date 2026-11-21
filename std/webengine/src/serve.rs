@@ -985,14 +985,26 @@ type Deferred = Box<dyn FnOnce()>;
 // Work a script result asks for (more input, more script): Servo runs those callbacks while its evaluator is
 // borrowed, so calling back into the WebView from one panics ("RefCell already borrowed"). The main loop runs them
 // after spin_event_loop.
-thread_local!(static DEFER: RefCell<Vec<Deferred>> = RefCell::new(Vec::new()));
+thread_local!(static DEFER: RefCell<Vec<(std::time::Instant, Deferred)>> = RefCell::new(Vec::new()));
 
 fn defer(f: impl FnOnce() + 'static) {
-    DEFER.with_borrow_mut(|d| d.push(Box::new(f)));
+    defer_ms(0, f);
+}
+
+/// Run `f` from the main loop `ms` from now.
+fn defer_ms(ms: u64, f: impl FnOnce() + 'static) {
+    let at = std::time::Instant::now() + Duration::from_millis(ms);
+    DEFER.with_borrow_mut(|d| d.push((at, Box::new(f))));
 }
 
 fn run_deferred() {
-    for f in DEFER.with_borrow_mut(std::mem::take) {
+    let now = std::time::Instant::now();
+    let due: Vec<Deferred> = DEFER.with_borrow_mut(|d| {
+        let (due, later): (Vec<_>, Vec<_>) = std::mem::take(d).into_iter().partition(|(at, _)| *at <= now);
+        *d = later;
+        due.into_iter().map(|(_, f)| f).collect()
+    });
+    for f in due {
         f();
     }
 }
@@ -1055,6 +1067,13 @@ fn select_word(view: &WebView, shared: SharedRef, x: i32, y: i32) {
         mouse(view, Some(MouseButtonAction::Down), x, y);
         mouse(view, Some(MouseButtonAction::Up), x, y);
     }
+    // input goes through the paint thread's hit test before it reaches script, script evaluation goes straight
+    // there: ask for the selection once the clicks have arrived
+    let view = view.clone();
+    defer_ms(200, move || select_word_done(&view, shared, x, y));
+}
+
+fn select_word_done(view: &WebView, shared: SharedRef, x: i32, y: i32) {
     view.evaluate_javascript(
         "[getSelection().toString().length, devicePixelRatio]",
         move |r| {
