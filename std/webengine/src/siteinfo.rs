@@ -4,6 +4,7 @@
 //! that hands `TlsSecurityInfo` to the embedder (it reaches only devtools today).
 
 use std::net::TcpStream;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use neoweb_proto::Event;
@@ -12,10 +13,17 @@ use rustls::{ClientConfig, ClientConnection, ProtocolVersion, RootCertStore};
 
 use crate::downloads::Post;
 
+/// A check is running: one at a time (review: P.I.P.S. sockets take no timeouts, so a site that never answers its
+/// handshake would keep each thread; shortcut: that one thread stays blocked until the socket fails).
+static RUNNING: AtomicBool = AtomicBool::new(false);
+
 /// Answer [`neoweb_proto::Command::SiteInfo`] for `url` on a thread: `cookies` is the site's cookie count.
 pub fn site_info(url: &url::Url, cookies: u32, post: Post) {
+    // NEOWEB drops an answer for a page it no longer shows
+    let asked = url.host_str().unwrap_or("").to_owned();
     let answer =
         move |tls: &str, summary: neoweb_core::safety::CertSummary, error: &str| Event::SiteInfo {
+            host: asked.clone(),
             tls: tls.into(),
             issued_to: summary.issued_to,
             issued_by: summary.issued_by,
@@ -23,7 +31,11 @@ pub fn site_info(url: &url::Url, cookies: u32, post: Post) {
             cookies,
             error: error.into(),
         };
-    let (Some(host), "https") = (url.host_str().map(str::to_owned), url.scheme()) else {
+    // an IPv6 address comes in brackets in a URL, not in a connection
+    let host = url
+        .host_str()
+        .map(|h| h.trim_start_matches('[').trim_end_matches(']').to_owned());
+    let (Some(host), "https") = (host, url.scheme()) else {
         post(answer(
             "",
             Default::default(),
@@ -32,7 +44,15 @@ pub fn site_info(url: &url::Url, cookies: u32, post: Post) {
         return;
     };
     let port = url.port_or_known_default().unwrap_or(443);
-    let _ = std::thread::Builder::new()
+    if RUNNING.swap(true, Ordering::AcqRel) {
+        post(answer(
+            "",
+            Default::default(),
+            "Still checking the last site. Try again in a moment.",
+        ));
+        return;
+    }
+    let spawned = std::thread::Builder::new()
         .name("neoweb-siteinfo".into())
         .stack_size(256 * 1024)
         .spawn(move || {
@@ -50,8 +70,13 @@ pub fn site_info(url: &url::Url, cookies: u32, post: Post) {
                     )
                 }
             };
+            RUNNING.store(false, Ordering::Release);
             post(e);
         });
+    if let Err(e) = spawned {
+        RUNNING.store(false, Ordering::Release);
+        println!("neowebe: site info thread: {e}");
+    }
 }
 
 /// A TLS handshake with webpki's roots (as Servo's): the protocol version and the leaf certificate.

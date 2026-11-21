@@ -371,6 +371,8 @@ pub enum Event {
     /// The answer to [`Command::SiteInfo`]: the TLS version ("TLS 1.3"), the certificate, the site's cookie count;
     /// `error` is set (and the rest empty) when the connection failed or the page isn't https.
     SiteInfo {
+        /// the site asked about (an answer for another page is stale)
+        host: String,
         tls: String,
         issued_to: String,
         issued_by: String,
@@ -814,6 +816,7 @@ impl Event {
                 .str(valid_from, 64)
                 .str(valid_until, 64),
             Event::SiteInfo {
+                host,
                 tls,
                 issued_to,
                 issued_by,
@@ -822,6 +825,7 @@ impl Event {
                 error,
             } => w
                 .u8(20)
+                .str(host, 256)
                 .str(tls, 64)
                 .str(issued_to, 512)
                 .str(issued_by, 512)
@@ -954,6 +958,7 @@ impl Event {
                 valid_until: r.str()?,
             },
             20 => Event::SiteInfo {
+                host: r.str()?,
                 tls: r.str()?,
                 issued_to: r.str()?,
                 issued_by: r.str()?,
@@ -1155,6 +1160,7 @@ mod tests {
                 valid_until: "2015-04-12".to_string(),
             },
             Event::SiteInfo {
+                host: "en.wikipedia.org".to_string(),
                 tls: "TLS 1.3".to_string(),
                 issued_to: "*.wikipedia.org".to_string(),
                 issued_by: "DigiCert TLS Hybrid ECC SHA384 2020 CA1".to_string(),

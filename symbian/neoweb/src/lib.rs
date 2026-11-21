@@ -575,7 +575,11 @@ impl Model {
             "forward" if !self.showing_web => self.showing_web = !self.live.url.is_empty(),
             "forward" if self.live.forward => return Some(Command::Forward),
             "reload" | "retry" if self.live.crashed => return self.go(ui, self.live.url.clone()),
-            "retry" => return Some(Command::Reload),
+            "retry" => {
+                // Servo doesn't always report Started for a reload: the error page ends here (review)
+                self.live.error = None;
+                return Some(Command::Reload);
+            }
             // br2-cert-error: back where the user was, else the start page
             "safety" if self.live.back => return Some(Command::Back),
             "safety" => {
@@ -584,9 +588,13 @@ impl Model {
             }
             // B10: only with Settings' switch on; the engine's page does the override
             "cert-allow" if self.lib.settings.allow_unsafe_certs => {
+                self.live.error = None;
                 return Some(Command::AllowCert);
             }
-            "reload" if self.showing_web => return Some(Command::Reload),
+            "reload" if self.showing_web => {
+                self.live.error = None;
+                return Some(Command::Reload);
+            }
             "stop" => {
                 self.live.loading.stop();
                 return Some(Command::Stop);
@@ -796,6 +804,8 @@ impl Model {
                     ui.invoke_show_sheet(4);
                 }
             }
+            // an answer for a page no longer shown is stale (review)
+            Event::SiteInfo { host, .. } if host != Header::of(&self.live.url).domain => {}
             Event::SiteInfo {
                 tls,
                 issued_by,

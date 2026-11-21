@@ -881,7 +881,13 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                     };
                     drop(tabs);
                     match cmd {
-                        Command::Reload => view.reload(),
+                        Command::Reload => {
+                            // Servo doesn't always report Started for a reload: the error page ends here (review)
+                            if let Some(t) = delegate.tabs.borrow_mut().of(&view) {
+                                t.error = None;
+                            }
+                            view.reload()
+                        }
                         Command::Stop => view.evaluate_javascript("window.stop()", |_| {}),
                         Command::Back => {
                             view.go_back(1);
@@ -893,10 +899,15 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                         Command::Select { op, x, y } => select(&view, &shared, op, x, y),
                         Command::Find { text, dir } => find(&view, &shared, &text, dir),
                         // only our certificate page defines it (resources.rs); NEOWEB sends it only with B10 on
-                        Command::AllowCert => view.evaluate_javascript(
-                            "typeof __neoweb_allow == 'function' && __neoweb_allow()",
-                            |_| {},
-                        ),
+                        Command::AllowCert => {
+                            if let Some(t) = delegate.tabs.borrow_mut().of(&view) {
+                                t.error = None;
+                            }
+                            view.evaluate_javascript(
+                                "typeof __neoweb_allow == 'function' && __neoweb_allow()",
+                                |_| {},
+                            )
+                        }
                         Command::SiteInfo => {
                             if let Some(url) = view.url() {
                                 let cookies = servo
