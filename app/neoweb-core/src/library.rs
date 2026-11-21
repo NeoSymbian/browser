@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! The library and settings (browser-ui.md UI4): bookmarks with one level of folders (`br2-bookmarks`), history
+//! The library and settings (browser/ui-screens.md UI4): bookmarks with one level of folders (`br2-bookmarks`), history
 //! grouped by day (`br2-history`), the download list (`br2-downloads`) and the settings (`br2-settings`).
 //!
 //! NEOWEB keeps each model in its private folder as line-based UTF-8 text: one record per line, fields separated

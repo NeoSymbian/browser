@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-//! NEOWEB's library (browser-ui.md UI4, WB5d): bookmarks, history, downloads and settings (neoweb-core's models),
+//! NEOWEB's library (browser/ui-screens.md UI4, WB5d): bookmarks, history, downloads and settings (neoweb-core's models),
 //! kept in NEOWEB's private folder, shown in the library views, and the downloads' shade entries.
 
 use alloc::format;

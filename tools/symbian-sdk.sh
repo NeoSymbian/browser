@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: Apache-2.0
-# symbian-sdk.sh -- the C/C++ side of the armv7a-symbian-eabi target on the Mac (browser WB3, docs browser-js.md):
+# symbian-sdk.sh -- the C/C++ side of the armv7a-symbian-eabi target on the Mac (browser WB3, docs browser/wb3-js.md):
 #   ~/.local/share/neosymbian-sdk/
 #     arm-gnu/          Arm GNU Toolchain 14.2.rel1 arm-none-eabi (darwin-arm64), the version build's toolchain image has
 #     epoc32/include/   the device headers (P.I.P.S. stdapis, e32) and build's symbian_gcc_prefix.h (IMPORT_C, Int64,

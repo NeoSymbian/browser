@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Opened pages (browser-ui.md UI2, B03; WB5c): at most [`OPEN_MAX`] tabs, of which [`LOADED_MAX`] keep their page in
+//! Opened pages (browser/ui-screens.md UI2, B03; WB5c): at most [`OPEN_MAX`] tabs, of which [`LOADED_MAX`] keep their page in
 //! the engine; opening or showing one more evicts the least recently used (it reloads its address when shown
 //! again). A page's new window is a tab with its opener, which Back returns to.
 

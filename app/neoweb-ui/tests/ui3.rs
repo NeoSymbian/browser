@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// UI3 (docs browser-ui.md, WB5a): forms with the keyboard up, the script prompt, a <select>, the upload choice and
+// UI3 (docs browser/ui-screens.md, WB5a): forms with the keyboard up, the script prompt, a <select>, the upload choice and
 // Save password; boards br2-form, br2-js-prompt, br2-upload, br2-login-save (br2-js-alert is the shell's QUERY).
 // The select sheet has no board; its snapshot is br2x-select.
 mod common;

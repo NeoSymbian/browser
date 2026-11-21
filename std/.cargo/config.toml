@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# ARMv7-A + NEON, softfp, with std (targets/armv7a-symbian-eabi.json; docs browser-std.md):
+# ARMv7-A + NEON, softfp, with std (targets/armv7a-symbian-eabi.json; docs browser/wb2-std.md):
 #   cargo sym    the staticlibs: target/armv7a-symbian-eabi/release/lib*.a, for build's rust/ (exes.txt)
 [alias]
 sym = "build --release --target targets/armv7a-symbian-eabi.json -Zjson-target-spec -Zbuild-std=std,panic_abort"

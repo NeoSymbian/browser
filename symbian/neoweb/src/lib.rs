@@ -729,7 +729,7 @@ impl Model {
                 self.switch(ui, |t| t.open(&url));
             }
             Event::ClipboardSet(text) => {
-                // over the shell's 2048 bytes the copy is refused, never cut (browser-ui.md)
+                // over the shell's 2048 bytes the copy is refused, never cut (browser/ui.md)
                 if !app.set_clipboard(&text) {
                     let _ = app.note("Too long to copy", "");
                 }

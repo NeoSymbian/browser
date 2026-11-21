@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! JSSHELL.EXE (docs browser-js.md, WB3): SpiderMonkey 153 (interpreter only, no Intl) through the mozjs crate on
+//! JSSHELL.EXE (docs browser/wb3-js.md, WB3): SpiderMonkey 153 (interpreter only, no Intl) through the mozjs crate on
 //! NeoSymbian. `jsshell` runs the built-in suite (tests/*.js: language, async, GC stress; 4 runtimes on 4 threads;
 //! a clean out-of-memory on the GC heap and on the native heap) and prints `js <name> ... ok|FAILED`;
 //! `jsshell FILE.js...` runs scripts; `jsshell -e CODE` one expression.

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 [package]
 name = "pipsprobe"
-description = "PIPSPROB.EXE: P.I.P.S. (Open C) as Rust's libc and std ports will see it (browser.md WB2b)"
+description = "PIPSPROB.EXE: P.I.P.S. (Open C) as Rust's libc and std ports will see it (browser/wb2-std.md WB2b)"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"

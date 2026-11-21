@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! CXXSMOKE.EXE (docs browser-js.md, WB3a): ARMv7 C++ from the SDK (tools/symbian-sdk.sh) linked into a Rust std
+//! CXXSMOKE.EXE (docs browser/wb3-js.md, WB3a): ARMv7 C++ from the SDK (tools/symbian-sdk.sh) linked into a Rust std
 //! EXE, with what SpiderMonkey needs from the C++ runtime: a static initialised once under two threads,
 //! `thread_local` per thread, 64-bit atomics, NEON, libstdc++ containers. Prints `cxx <name> ... ok|FAILED`.
 
