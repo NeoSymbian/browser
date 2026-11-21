@@ -28,7 +28,8 @@ use neoweb_proto::{
     func,
 };
 use servo::{
-    AllowOrDenyRequest, ClipboardDelegate, Code, ConsoleLogLevel, CreateNewWebViewRequest, JSValue,
+    AllowOrDenyRequest, ClipboardDelegate, MouseButton, MouseButtonAction, MouseButtonEvent,
+    MouseMoveEvent, Code, ConsoleLogLevel, CreateNewWebViewRequest, JSValue,
     PrefValue, StorageType, DevicePoint, EmbedderControl, EmbedderControlId,
     EventLoopWaker, FilePicker, ImeEvent, InputEvent, InputMethodType, Key, KeyState,
     KeyboardEvent, LoadStatus, Location, Modifiers, NamedKey, RenderingContext, SelectElement,
@@ -948,33 +949,86 @@ fn post(shared: &SharedRef, e: Event) {
     shared.lock().unwrap().post(e);
 }
 
-/// The selection's ends from a helper result's numbers from `from` on.
-fn ends(v: &[JSValue], from: usize) -> Event {
+
+/// The text selection's ends as points (page px): Servo 0.8's Range rectangles cover a whole text node (and, in one
+/// node, everything after it), so the engine keeps the points it selected with and reports those.
+#[derive(Clone, Copy, Default)]
+pub struct SelEnds {
+    a: (i32, i32),
+    b: (i32, i32),
+    line: i32,
+}
+
+thread_local!(static SEL: std::cell::Cell<Option<SelEnds>> = const { std::cell::Cell::new(None) });
+
+fn sel_event(e: Option<SelEnds>) -> Event {
     Event::Selection {
-        ends: v.iter().skip(from).map(|x| num(Some(x))).collect(),
+        ends: e.map_or(Vec::new(), |e| {
+            vec![e.a.0, e.a.1 - e.line / 2, e.b.0, e.b.1 - e.line / 2, e.line]
+        }),
     }
 }
 
-/// A long-press: a link or image for the menu, or a word selected.
+fn mouse(view: &WebView, action: Option<MouseButtonAction>, x: i32, y: i32) {
+    let point = WebViewPoint::Device(DevicePoint::new(x as f32, y as f32));
+    let e = match action {
+        Some(a) => InputEvent::MouseButton(MouseButtonEvent::new(a, MouseButton::Primary, point)),
+        None => InputEvent::MouseMove(MouseMoveEvent::new(point)),
+    };
+    view.notify_input_event(e);
+}
+
+/// Select from `anchor` to `to` the way a mouse drag does (Servo's document selection).
+fn drag_select(view: &WebView, anchor: (i32, i32), to: (i32, i32)) {
+    mouse(view, Some(MouseButtonAction::Down), anchor.0, anchor.1);
+    mouse(view, None, to.0, to.1);
+    mouse(view, Some(MouseButtonAction::Up), to.0, to.1);
+}
+
+/// A long-press: a link or image for the menu, or the word under it selected (a double click).
 fn press(view: &WebView, shared: &SharedRef, x: i32, y: i32) {
     let shared = shared.clone();
+    let v2 = view.clone();
     view.evaluate_javascript(&format!("__neoweb.press({x},{y})"), move |r| {
         let v = items(&r);
         let kind = match num(v.first()) {
             1 => PressKind::Link,
             2 => PressKind::Image,
-            3 => PressKind::Text,
             _ => PressKind::Nothing,
         };
-        if kind == PressKind::Text {
-            post(&shared, ends(&v, 1));
-            post(
-                &shared,
-                Event::Pressed {
-                    kind,
-                    title: String::new(),
-                    url: String::new(),
-                    y: 0,
+        if kind == PressKind::Nothing {
+            for _ in 0..2 {
+                mouse(&v2, Some(MouseButtonAction::Down), x, y);
+                mouse(&v2, Some(MouseButtonAction::Up), x, y);
+            }
+            let shared = shared.clone();
+            v2.evaluate_javascript(
+                "[getSelection().toString().length, devicePixelRatio]",
+                move |r| {
+                    let v = items(&r);
+                    if num(v.first()) == 0 {
+                        return post(&shared, sel_event(None));
+                    }
+                    // shortcut: the word's real ends need text geometry Servo doesn't give script; the handles
+                    // sit a word's width around the press
+                    let dpr = num(v.get(1)).max(1);
+                    let half = 30 * dpr;
+                    let e = SelEnds {
+                        a: (x - half, y),
+                        b: (x + half, y),
+                        line: 20 * dpr,
+                    };
+                    SEL.set(Some(e));
+                    post(&shared, sel_event(Some(e)));
+                    post(
+                        &shared,
+                        Event::Pressed {
+                            kind: PressKind::Text,
+                            title: String::new(),
+                            url: String::new(),
+                            y: 0,
+                        },
+                    );
                 },
             );
             return;
@@ -999,13 +1053,41 @@ fn select(view: &WebView, shared: &SharedRef, op: SelectOp, x: i32, y: i32) {
         });
         return;
     }
-    let js = match op {
-        SelectOp::SelectAll => "__neoweb.selectAll()".into(),
-        SelectOp::DragStart => format!("__neoweb.drag(0,{x},{y})"),
-        SelectOp::DragEnd => format!("__neoweb.drag(1,{x},{y})"),
-        _ => "__neoweb.clear()".into(),
-    };
-    view.evaluate_javascript(&js, move |r| post(&shared, ends(&items(&r), 0)));
+    match (op, SEL.get()) {
+        // a handle dragged: select from the other end to the finger, as a mouse would
+        (SelectOp::DragEnd, Some(mut e)) => {
+            e.b = (x, y + e.line / 2);
+            drag_select(view, e.a, e.b);
+            SEL.set(Some(e));
+            post(&shared, sel_event(Some(e)));
+        }
+        (SelectOp::DragStart, Some(mut e)) => {
+            e.a = (x, y + e.line / 2);
+            drag_select(view, e.b, e.a);
+            SEL.set(Some(e));
+            post(&shared, sel_event(Some(e)));
+        }
+        (SelectOp::SelectAll, _) => {
+            view.evaluate_javascript(
+                "__neoweb.selectAll(); [innerWidth * devicePixelRatio, innerHeight * devicePixelRatio, devicePixelRatio]",
+                move |r| {
+                    let v = items(&r);
+                    let (w, h, dpr) = (num(v.first()), num(v.get(1)), num(v.get(2)).max(1));
+                    let e = SelEnds {
+                        a: (16 * dpr, 40 * dpr),
+                        b: (w - 16 * dpr, h - 60 * dpr),
+                        line: 20 * dpr,
+                    };
+                    SEL.set(Some(e));
+                    post(&shared, sel_event(Some(e)));
+                },
+            );
+        }
+        _ => {
+            SEL.set(None);
+            view.evaluate_javascript("__neoweb.clear()", move |_| post(&shared, sel_event(None)));
+        }
+    }
 }
 
 fn find(view: &WebView, shared: &SharedRef, q: &str, dir: i32) {

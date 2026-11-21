@@ -84,15 +84,8 @@
       if (a) return [1, (a.textContent || '').trim().slice(0, 200), a.href, a.getBoundingClientRect().bottom * dpr()];
       const img = el && el.closest('img[src]');
       if (img) return [2, img.alt || '', img.src, img.getBoundingClientRect().bottom * dpr()];
-      const c = caretAt(x, y);
-      if (!c) return [0];
-      const t = c.node.data;
-      let s = Math.min(c.offset, t.length - 1), e = s;
-      if (!word.test(t[s] || '')) return [0];
-      while (s > 0 && word.test(t[s - 1])) s--;
-      while (e < t.length && word.test(t[e])) e++;
-      getSelection().setBaseAndExtent(c.node, s, c.node, e);
-      return [3, ...ends()];
+      // text: the engine selects the word with a double click (Servo's own word segmentation)
+      return [0];
     },
     // move a selection end (0 the start, 1 the end) to (x, y)
     drag(which, x, y) {
