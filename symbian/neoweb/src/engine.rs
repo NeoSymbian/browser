@@ -248,7 +248,16 @@ impl Connection {
     pub fn send(&mut self, command: Command) -> Result<(), i32> {
         match self {
             Self::Online { engine, .. } => engine.send(command),
-            Self::Offline if matches!(command, Command::Load(_)) => {
+            // a page to show: start the engine again (Connected reopens the current tab)
+            Self::Offline
+                if matches!(
+                    command,
+                    Command::Load(_)
+                        | Command::Open { .. }
+                        | Command::Reload
+                        | Command::Activate { .. }
+                ) =>
+            {
                 *self = Self::start();
                 Ok(())
             }

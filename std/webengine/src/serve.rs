@@ -626,7 +626,25 @@ fn input(webview: &WebView, d: &Delegate, cmd: Command) {
 }
 
 /// Run the engine server until the last client goes. Returns the exit reason.
+/// The calling thread's death ends the process (`User::SetCritical(EProcessCritical)`): if Servo's main thread dies,
+/// the IPC thread would otherwise keep the server alive and NEOWEB would wait on a page that never comes.
+fn process_critical() {
+    const CURRENT_THREAD: u32 = 0xFFFF_8001; // KCurrentThreadHandle
+    const CRITICAL_FLAGS: u32 = 0xF; // system/process permanent/critical (u32std.h)
+    const PROCESS_CRITICAL: u32 = 0x1; // KThreadFlagProcessCritical
+    // SAFETY: ThreadSetFlags(handle, clear, set) on the current thread, as euser's User::SetCritical calls it
+    unsafe {
+        e32::sys::swi::exec4::<{ e32::sys::execs::slow::THREAD_SET_FLAGS }>(
+            CURRENT_THREAD,
+            CRITICAL_FLAGS,
+            PROCESS_CRITICAL,
+            0,
+        );
+    }
+}
+
 pub fn serve(log: log::LevelFilter) -> Result<(), String> {
+    process_critical();
     let _ = log::set_logger(&crate::DebugLog);
     log::set_max_level(log);
     let (chunk_size, header) = FrameHeader::layout(MAX_W, MAX_H);
