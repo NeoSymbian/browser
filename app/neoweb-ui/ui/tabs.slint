@@ -1,0 +1,229 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// br2-tabs (browser-ui.md UI2): Opened pages, a full-screen grid over the chrome (the footer is hidden under it).
+// It is a kit layer: Back closes it.
+import { Theme, Kit, Glyph, HeaderButton } from "@neoui/kit.slint";
+
+// One opened page: the letter badge in its colour, the title, the page's thumbnail (empty: white).
+export struct TabCard {
+    title: string,
+    letter: string,
+    color: color,
+    thumb: image,
+    current: bool,
+}
+
+// A 226 dp card: a 40 dp row (badge, title, ✕), then the thumbnail; the current page has a 2 dp accent ring.
+component Card inherits Rectangle {
+    in property <TabCard> tab;
+    callback clicked;
+    callback close;
+    accessible-role: button;
+    accessible-label: tab.current ? tab.title + ", current page" : tab.title;
+    Rectangle {
+        border-radius: Theme.radius;
+        background: Theme.card;
+        clip: true;
+        t := TouchArea {
+            clicked => {
+                root.clicked();
+            }
+        }
+
+        Rectangle {
+            y: 40 * Theme.dp;
+            height: parent.height - self.y;
+            background: white;
+            Image {
+                width: 100%;
+                height: 100%;
+                source: root.tab.thumb;
+                image-fit: cover;
+                vertical-alignment: top;
+            }
+        }
+
+        Rectangle {
+            background: t.pressed ? Theme.pressed : transparent;
+        }
+
+        HorizontalLayout {
+            y: 0;
+            height: 40 * Theme.dp;
+            padding-left: 10 * Theme.dp;
+            spacing: 8 * Theme.dp;
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 20 * Theme.dp;
+                height: self.width;
+                border-radius: 6 * Theme.dp;
+                background: root.tab.color;
+                Text {
+                    text: root.tab.letter;
+                    color: Theme.text;
+                    font-size: 11 * Theme.dp;
+                    font-weight: 700;
+                }
+            }
+
+            Text {
+                min-width: 0;
+                horizontal-stretch: 1;
+                font-family: "DejaVu Sans";
+                text: root.tab.title;
+                color: Theme.text;
+                font-size: Theme.font-label;
+                font-weight: 500;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+
+            TouchArea {
+                width: 40 * Theme.dp;
+                accessible-role: button;
+                accessible-label: "Close " + root.tab.title;
+                clicked => {
+                    root.close();
+                }
+                Glyph {
+                    source: @image-url("@neoui/icons/sys/close.svg");
+                    size: 18 * Theme.dp;
+                    colorize: parent.pressed ? Theme.text : Theme.text-secondary;
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.card-border;
+    }
+
+    // the software renderer clips square: a ring in the view's colour rounds the thumbnail's corners
+    Rectangle {
+        x: -8 * Theme.dp;
+        y: -8 * Theme.dp;
+        width: parent.width + 16 * Theme.dp;
+        height: parent.height + 16 * Theme.dp;
+        border-radius: Theme.radius + 8 * Theme.dp;
+        border-width: 8 * Theme.dp;
+        border-color: Theme.bg;
+    }
+
+    if root.tab.current: Rectangle {
+        x: -2 * Theme.dp;
+        y: -2 * Theme.dp;
+        width: parent.width + 4 * Theme.dp;
+        height: parent.height + 4 * Theme.dp;
+        border-radius: Theme.radius + 2 * Theme.dp;
+        border-width: 2 * Theme.dp;
+        border-color: Theme.accent;
+    }
+}
+
+// The view; `open` is BrowserState.tabs-open. Opening a page or a new tab closes it; Back closes it (`dismissed`).
+export component TabsView inherits Rectangle {
+    in property <[TabCard]> tabs;
+    in-out property <bool> open;
+    callback tab(int);
+    callback close-tab(int);
+    callback new-tab();
+    callback options();
+    callback dismissed();
+    visible: root.open;
+    background: Theme.bg;
+
+    property <int> level;
+    property <int> seq: Kit.back-seq;
+    changed open => {
+        if self.open {
+            self.level = Kit.push();
+        } else if self.level > 0 {
+            Kit.pop();
+            self.level = 0;
+        }
+    }
+    changed seq => {
+        if Kit.take-back(self.level) {
+            root.open = false;
+            root.dismissed();
+        }
+    }
+
+    // nothing under the view takes a tap
+    TouchArea { }
+
+    Rectangle {
+        y: 0;
+        height: Theme.header-h;
+        background: Theme.header-alt;
+        Rectangle {
+            y: parent.height - 1px;
+            height: 1px;
+            background: Theme.header-hairline;
+        }
+
+        HorizontalLayout {
+            padding-left: 16 * Theme.dp;
+            padding-right: 4 * Theme.dp;
+            Text {
+                text: "Opened pages";
+                color: Theme.text;
+                font-size: Theme.font-title;
+                font-weight: 600;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            HeaderButton {
+                icon: @image-url("@neoui/icons/sys/add.svg");
+                label: "New tab";
+                clicked => {
+                    root.open = false;
+                    root.new-tab();
+                }
+            }
+
+            HeaderButton {
+                icon: @image-url("@neoui/icons/sys/more.svg");
+                label: "Options";
+                clicked => {
+                    root.options();
+                }
+            }
+        }
+    }
+
+    // 2 columns, 12 dp gaps, 14 dp above and below
+    property <length> card-w: (root.width - 36 * Theme.dp) / 2;
+    property <length> pitch: 238 * Theme.dp;
+    Flickable {
+        y: Theme.header-h;
+        height: note.y - 8 * Theme.dp - self.y;
+        content-height: 16 * Theme.dp + Math.ceil(root.tabs.length / 2) * root.pitch;
+        for c[i] in root.tabs: Card {
+            x: 12 * Theme.dp + Math.mod(i, 2) * (root.card-w + 12 * Theme.dp);
+            y: 14 * Theme.dp + Math.floor(i / 2) * root.pitch;
+            width: root.card-w;
+            height: 226 * Theme.dp;
+            tab: c;
+            clicked => {
+                root.open = false;
+                root.tab(i);
+            }
+            close => {
+                root.close-tab(i);
+            }
+        }
+    }
+
+    note := Text {
+        x: 16 * Theme.dp;
+        y: root.height - 16 * Theme.dp - self.height;
+        width: root.width - 32 * Theme.dp;
+        text: "Up to 6 pages stay loaded; older ones reload when you open them.";
+        color: Theme.text-secondary;
+        font-size: Theme.font-label;
+        wrap: word-wrap;
+    }
+}

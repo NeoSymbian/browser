@@ -20,6 +20,8 @@ servo = { path = "../../../../fork/servo/components/servo", default-features = f
 ipc-channel = { version = "0.23", features = ["force-inprocess"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "logging", "std", "tls12"] }
 url = "2.5"
+# downloads (WB5d): HTTP(S) over the rustls provider start_servo installs, with webpki's roots like Servo's
+ureq = { version = "3.5", default-features = false, features = ["rustls-no-provider", "rustls-webpki-roots"] }
 log = "0.4"
 euclid = "0.22"
 dpi = "0.1"

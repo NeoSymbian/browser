@@ -9,8 +9,17 @@ import "@neoui/fonts/DejaVuSans.ttf";
 import { Theme, Kit, Scroll, Glyph, HeaderButton, KeyboardFocus } from "@neoui/kit.slint";
 import { FieldInput } from "@neoui/components/controls.slint";
 import { CrashedPage, FakePages, WebPage } from "pages.slint";
+import { PromptSheet, SelectSheet, UploadSheet, LoginSheet, OptionsSheet, LinkMenu, SelectRow, RecentFile } from "sheets.slint";
+import { TabsView, TabCard } from "tabs.slint";
+import { LibraryView, BookmarkRow, HistoryRow, DownloadRow } from "library.slint";
 
-export { Theme, Kit, Scroll, KeyboardFocus }
+export { Theme, Kit, Scroll, KeyboardFocus, SelectRow, RecentFile, TabCard, BookmarkRow, HistoryRow, DownloadRow }
+
+// A point on the app's surface (dp), e.g. a selection handle's: the selection's edge at the top of its line.
+export struct Spot {
+    x: length,
+    y: length,
+}
 
 // A row under the address bar while editing (neoweb-core input::Suggestion): kind 0 history, 1 bookmark, 2 search.
 export struct Suggest {
@@ -28,7 +37,20 @@ export struct ShortcutTile {
 // What the app's Rust shows; taps come back as act(action, value):
 // "back" "forward" "search" "tabs" "options" (the footer), "address" "site-info" "bookmark" "reload" "stop" (the
 // header), "shortcut" i, "recent" i, "edit-shortcuts" (the start page), "edited" and "go" (typing, Enter in edit mode), "cancel-edit",
-// "suggestion" i, "scroll" dp (the page's offset from its top), "tick" (every 100 ms while loading).
+// "suggestion" i, "scroll" dp (the page's offset from its top), "tick" (every 100 ms while loading); the sheets (WB5a):
+// "prompt" 1 OK / 0 Cancel, "select" i (a row), "select-done", "select-cancel", "upload" i (0 Photos, 1 Files,
+// 2 Memory card, 10 + n a recent file), "upload-cancel", "login" 0 Never / 1 Not now; UI2 (WB5c): "tab" i (open it),
+// "tab-close" i, "new-tab", "tabs-options", "tabs-back" (Back closed Opened pages), "option" i (the Options panel:
+// 0 New tab, 1 Find in page, 2 Share, 3 Copy link, 4 Desktop site, 5 Bookmarks, 6 History, 7 Downloads, 8 Settings),
+// "link" i (0 Open in new tab, 1 Copy link, 2 Download link, 3 Share), "link-cancel", "selection" i (0 Copy,
+// 1 Select all, 2 Search), "find-edited", "find-prev", "find-next" (also Enter), "find-close"; UI4 (WB5d), the library
+// views: "library-back" (← or Back; the view closed itself unless a folder was open), "library-menu" i (⋮),
+// Bookmarks: "bm-open" i, "bm-folder" i, "bm-new-folder", "bm-search" (each change of library-query), "bm-long" i
+// then "bm-edit" i / "bm-move" i / "bm-delete" i, "bm-folder-long" i then "bm-folder-rename" i / "bm-folder-delete" i;
+// History: "hist-open" i (a row of history-rows), "hist-remove" i, "hist-clear", "hist-search"; Downloads:
+// "dl-pause" i (pause, resume or retry a row of downloading), "dl-cancel" i, "dl-open" i (a row of downloaded);
+// Settings: "set-engine" i, "set-text-size" i (neoweb-core TEXT_SIZES), "set-desktop" 0/1, "set-js" 0/1,
+// "set-cookies" i (0 allow all, 1 block third-party), "set-clear", "set-unsafe" 0/1, "set-about".
 export global BrowserState {
     // 0 Start, 1–3 FakePage boards in host previews, 4 engine frame, 5 crashed
     in property <int> page;
@@ -52,6 +74,55 @@ export global BrowserState {
     in property <bool> chrome-shown: true;
     // the page's scroll position (Flickable content-y: 0 at the top, negative further down)
     in-out property <length> page-y;
+    // WB5a: the system keyboard over the app (surface px, 0 = none). It covers the footer; the page ends above it.
+    in property <int> keyboard-px;
+    // the sheets' contents; BrowserApp.show-sheet opens one
+    in property <string> sheet-site;
+    in property <string> sheet-text;
+    in-out property <string> sheet-value;
+    in property <[SelectRow]> select-rows;
+    in property <bool> select-multiple;
+    in property <[RecentFile]> recent-files;
+    // br2-tabs: Opened pages over everything (a kit layer: Back closes it and sends "tabs-back")
+    in-out property <bool> tabs-open;
+    in property <[TabCard]> tabs;
+    // br2-menu: Desktop site is on for this page
+    in property <bool> desktop-site;
+    // br2-link-menu (show-sheet 5): the link, and the y (dp) to put the menu at; it stays on screen
+    in property <string> link-title;
+    in property <string> link-url;
+    in property <length> link-y;
+    // br2-select: the bar's top-left and the two handles (dp on the app's surface)
+    in property <bool> selection-shown;
+    in property <length> selection-x;
+    in property <length> selection-y;
+    in property <Spot> handle-a;
+    in property <Spot> handle-b;
+    // br2-find: the header is the find bar; "2/7"
+    in property <bool> finding;
+    in-out property <string> find-text;
+    in property <string> find-count;
+    // UI4: the library view shown (0 none, 1 Bookmarks, 2 History, 3 Downloads, 4 Settings); open it with
+    // BrowserApp.show-library(n), which makes it a kit layer at once
+    in-out property <int> library;
+    // br2-bookmarks: the open folder's name ("" = the top level), its folders and bookmarks
+    in property <string> bookmark-folder;
+    in property <[BookmarkRow]> bookmark-folders;
+    in property <[BookmarkRow]> bookmarks;
+    // br2-history: day headers and visits, newest first (neoweb-core History::rows)
+    in property <[HistoryRow]> history-rows;
+    // br2-downloads: the ones going (downloading, paused, failed), then the finished ones
+    in property <[DownloadRow]> downloading;
+    in property <[DownloadRow]> downloaded;
+    // the header's search field (Bookmarks, History)
+    in-out property <string> library-query;
+    // br2-settings: engine (SearchEngine index), text size (percent), cookies (0 allow all, 1 block third-party)
+    in property <int> settings-engine;
+    in property <int> settings-text-size: 100;
+    in property <int> settings-cookies: 1;
+    in-out property <bool> settings-desktop;
+    in-out property <bool> settings-js: true;
+    in-out property <bool> settings-unsafe;
     callback act(string, int);
 }
 
@@ -156,7 +227,7 @@ component AddressBar inherits Rectangle {
         background: Theme.header-hairline;
     }
 
-    if !BrowserState.editing && BrowserState.security == 0: TouchArea {
+    if !BrowserState.finding && !BrowserState.editing && BrowserState.security == 0: TouchArea {
         clicked => { BrowserState.act("address", 0); }
         HorizontalLayout {
             padding-left: 16 * Theme.dp;
@@ -178,7 +249,7 @@ component AddressBar inherits Rectangle {
             }
         }
     }
-    if !BrowserState.editing && BrowserState.security != 0: HorizontalLayout {
+    if !BrowserState.finding && !BrowserState.editing && BrowserState.security != 0: HorizontalLayout {
         padding-left: 12 * Theme.dp;
         padding-right: 4 * Theme.dp;
         TouchArea {
@@ -229,7 +300,7 @@ component AddressBar inherits Rectangle {
         }
     }
     // edit mode (B01): a 40 dp field #1d2025 r20 with the full URL selected, ✕ cancels
-    if BrowserState.editing: HorizontalLayout {
+    if !BrowserState.finding && BrowserState.editing: HorizontalLayout {
         padding-left: 12 * Theme.dp;
         padding-right: 4 * Theme.dp;
         spacing: 4 * Theme.dp;
@@ -268,6 +339,75 @@ component AddressBar inherits Rectangle {
             icon: @image-url("@neoui/icons/sys/close.svg");
             label: "Cancel editing";
             clicked => { BrowserState.act("cancel-edit", 0); }
+        }
+    }
+    // br2-find: the field (search glyph, the text, "2/7"), ↑ ↓ (40 dp) and ✕
+    if BrowserState.finding: HorizontalLayout {
+        padding-left: 12 * Theme.dp;
+        padding-right: 2 * Theme.dp;
+        VerticalLayout {
+            horizontal-stretch: 1;
+            min-width: 0;
+            alignment: center;
+            Rectangle {
+                height: Theme.search-h;
+                border-radius: self.height / 2;
+                background: Theme.field;
+                HorizontalLayout {
+                    padding-left: 14 * Theme.dp;
+                    padding-right: 14 * Theme.dp;
+                    spacing: 10 * Theme.dp;
+                    Glyph {
+                        y: (parent.height - self.height) / 2;
+                        source: @image-url("@neoui/icons/sys/search.svg");
+                        size: 18 * Theme.dp;
+                        colorize: Theme.text-dim;
+                    }
+
+                    FieldInput {
+                        min-width: 0;
+                        horizontal-stretch: 1;
+                        text <=> BrowserState.find-text;
+                        edited => {
+                            BrowserState.act("find-edited", 0);
+                        }
+                        accepted => {
+                            BrowserState.act("find-next", 0);
+                        }
+                        init => {
+                            self.focus();
+                        }
+                    }
+
+                    Text {
+                        text: BrowserState.find-count;
+                        font-size: Theme.font-label;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        HeaderButton {
+            width: 40 * Theme.dp;
+            icon: @image-url("icons/chevron_up.svg");
+            label: "Previous match";
+            clicked => { BrowserState.act("find-prev", 0); }
+        }
+
+        HeaderButton {
+            width: 40 * Theme.dp;
+            icon: @image-url("@neoui/icons/sys/chevron_down.svg");
+            label: "Next match";
+            clicked => { BrowserState.act("find-next", 0); }
+        }
+
+        HeaderButton {
+            width: 40 * Theme.dp;
+            icon: @image-url("@neoui/icons/sys/close.svg");
+            label: "Close find";
+            clicked => { BrowserState.act("find-close", 0); }
         }
     }
     if BrowserState.loading: Rectangle {
@@ -440,13 +580,86 @@ component Suggestions inherits Flickable {
     }
 }
 
+// br2-select: a selection handle, a 2 dp caret down the line (20 dp) and a 16 dp drop under it, its square corner
+// towards the selection: the start handle hangs to the left of the point, the end one to the right.
+component Handle inherits Rectangle {
+    in property <bool> start;
+    width: 0;
+    height: 0;
+    Rectangle {
+        x: -1 * Theme.dp;
+        y: -1 * Theme.dp;
+        width: 2 * Theme.dp;
+        height: 20 * Theme.dp;
+        background: Theme.accent;
+    }
+
+    Rectangle {
+        x: root.start ? -16 * Theme.dp : 0;
+        y: 18 * Theme.dp;
+        width: 16 * Theme.dp;
+        height: self.width;
+        border-top-left-radius: root.start ? self.width / 2 : 0;
+        border-top-right-radius: root.start ? 0 : self.width / 2;
+        border-bottom-left-radius: self.width / 2;
+        border-bottom-right-radius: self.width / 2;
+        background: Theme.accent;
+    }
+}
+
+// br2-select: the floating bar, Copy | Select all | Search, at selection-x/y (kept on screen).
+component SelectionBar inherits Rectangle {
+    height: 40 * Theme.dp;
+    width: row.preferred-width;
+    border-radius: self.height / 2;
+    border-width: 1px;
+    border-color: Theme.hairline;
+    background: Theme.sheet;
+    row := HorizontalLayout {
+        padding-left: 4 * Theme.dp;
+        padding-right: 4 * Theme.dp;
+        for b[i] in ["Copy", "Select all", "Search"]: Rectangle {
+            property <length> divider: i > 0 ? 1px : 0;
+            width: label.preferred-width + 28 * Theme.dp + self.divider;
+            accessible-role: button;
+            accessible-label: b;
+            if i > 0: Rectangle {
+                x: 0;
+                width: 1px;
+                height: 20 * Theme.dp;
+                background: Theme.header-hairline;
+            }
+            Rectangle {
+                x: parent.divider;
+                width: parent.width - self.x;
+                background: t.pressed ? Theme.pressed : transparent;
+            }
+
+            label := Text {
+                x: parent.divider + 14 * Theme.dp;
+                text: b;
+                color: Theme.text;
+                font-size: 14 * Theme.dp;
+                font-weight: 500;
+            }
+
+            t := TouchArea {
+                clicked => {
+                    BrowserState.act("selection", i);
+                }
+            }
+        }
+    }
+}
+
 export component BrowserApp inherits Window {
     default-font-family: "NeoSans";
     background: Theme.bg;
     // neoapp sizes the window in surface pixels. Use the same bounds for the image, Resize and page touches.
     out property <int> page-top-px: round(Theme.header-h / 1px);
     out property <int> page-width-px: round(root.width / 1px);
-    out property <int> page-height-px: max(0, round((root.height - Theme.footer-h) / 1px) - page-top-px);
+    // br2-form: with the keyboard up the page ends at the keyboard (679 − 48 − 276 = 355 dp), over the footer
+    out property <int> page-height-px: max(0, round((root.height - (BrowserState.keyboard-px > 0 ? BrowserState.keyboard-px * 1px : Theme.footer-h)) / 1px) - page-top-px);
     if BrowserState.editing: Suggestions {
         y: Theme.header-h;
         height: root.height - Theme.header-h;
@@ -512,6 +725,72 @@ export component BrowserApp inherits Window {
         }
     }
 
+    // br2-select: over the page and the chrome, under the sheets
+    if BrowserState.selection-shown: Handle {
+        x: BrowserState.handle-a.x;
+        y: BrowserState.handle-a.y;
+        start: true;
+    }
+    if BrowserState.selection-shown: Handle {
+        x: BrowserState.handle-b.x;
+        y: BrowserState.handle-b.y;
+    }
+    if BrowserState.selection-shown: SelectionBar {
+        x: max(8 * Theme.dp, min(root.width - self.width - 8 * Theme.dp, BrowserState.selection-x));
+        y: BrowserState.selection-y;
+    }
+
+    // br2-tabs: over the chrome (the footer is hidden under it)
+    TabsView {
+        y: 0;
+        height: root.height;
+        tabs: BrowserState.tabs;
+        open <=> BrowserState.tabs-open;
+        tab(i) => {
+            BrowserState.act("tab", i);
+        }
+        close-tab(i) => {
+            BrowserState.act("tab-close", i);
+        }
+        new-tab => {
+            BrowserState.act("new-tab", 0);
+        }
+        options => {
+            BrowserState.act("tabs-options", 0);
+        }
+        dismissed => {
+            BrowserState.act("tabs-back", 0);
+        }
+    }
+
+    // UI4: Bookmarks, History, Downloads, Settings over the chrome and Opened pages
+    library := LibraryView {
+        y: 0;
+        height: root.height;
+        screen <=> BrowserState.library;
+        folder: BrowserState.bookmark-folder;
+        folders: BrowserState.bookmark-folders;
+        bookmarks: BrowserState.bookmarks;
+        history: BrowserState.history-rows;
+        downloading: BrowserState.downloading;
+        downloaded: BrowserState.downloaded;
+        query <=> BrowserState.library-query;
+        engine: BrowserState.settings-engine;
+        text-size: BrowserState.settings-text-size;
+        cookies: BrowserState.settings-cookies;
+        desktop <=> BrowserState.settings-desktop;
+        javascript <=> BrowserState.settings-js;
+        unsafe-certs <=> BrowserState.settings-unsafe;
+        act(a, v) => {
+            BrowserState.act(a, v);
+        }
+    }
+
+    // Open library view `n` (0 closes it).
+    public function show-library(n: int) {
+        library.show(n);
+    }
+
     // shortcut: the software renderer bakes in the glyphs of string literals (and Latin-1) only, so page titles in the
     // chrome would lose web punctuation; this never-shown text adds the common ones. A runtime font (WB4's bundled
     // fonts) lifts the limit.
@@ -519,6 +798,83 @@ export component BrowserApp inherits Window {
         visible: false;
         font-family: "DejaVu Sans";
         text: "–—‘’‚“”„…•·′″‹›«»€£¥©®™°±×÷§¶†‡№";
+    }
+
+    // The page's sheets, over everything (UI3): 0 closes them (unanswered), 1 prompt, 2 select, 3 upload, 4 save
+    // password; UI2: 5 the link menu, 6 the Options panel. Each answers with act() and closes itself.
+    public function show-sheet(n: int) {
+        prompt.open = n == 1;
+        select.open = n == 2;
+        upload.open = n == 3;
+        login.open = n == 4;
+        link-menu.open = n == 5;
+        options.open = n == 6;
+    }
+    out property <bool> sheet-open: prompt.open || select.open || upload.open || login.open || link-menu.open || options.open;
+    prompt := PromptSheet {
+        // br2-js-prompt: it sits on the keyboard
+        y: 0;
+        height: root.height - BrowserState.keyboard-px * 1px;
+        site: BrowserState.sheet-site;
+        question: BrowserState.sheet-text;
+        value <=> BrowserState.sheet-value;
+        answered(ok) => {
+            BrowserState.act("prompt", ok ? 1 : 0);
+        }
+    }
+
+    select := SelectSheet {
+        rows: BrowserState.select-rows;
+        multiple: BrowserState.select-multiple;
+        max-list-h: root.height * 0.6;
+        picked(i) => {
+            if !BrowserState.select-multiple {
+                }
+            BrowserState.act("select", i);
+        }
+        done => {
+            BrowserState.act("select-done", 0);
+        }
+        cancelled => {
+            BrowserState.act("select-cancel", 0);
+        }
+    }
+
+    upload := UploadSheet {
+        recent: BrowserState.recent-files;
+        chosen(i) => {
+            BrowserState.act("upload", i);
+        }
+        cancelled => {
+            BrowserState.act("upload-cancel", 0);
+        }
+    }
+
+    login := LoginSheet {
+        site: BrowserState.sheet-site;
+        user: BrowserState.sheet-text;
+        answered(i) => {
+            BrowserState.act("login", i);
+        }
+    }
+
+    options := OptionsSheet {
+        desktop-site: BrowserState.desktop-site;
+        chosen(i) => {
+            BrowserState.act("option", i);
+        }
+    }
+
+    link-menu := LinkMenu {
+        title: BrowserState.link-title;
+        url: BrowserState.link-url;
+        top: BrowserState.link-y;
+        chosen(i) => {
+            BrowserState.act("link", i);
+        }
+        cancelled => {
+            BrowserState.act("link-cancel", 0);
+        }
     }
 
     // the stand-in engine's load (neoweb-core chrome::Loading)

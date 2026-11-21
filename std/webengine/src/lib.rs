@@ -12,7 +12,9 @@ unsafe extern "C" {
 
 mod random;
 mod serve;
+mod downloads;
 mod swgl;
+mod tabs;
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -40,6 +42,10 @@ const INTERPRETER_PREFS: &[(&str, bool)] = &[
     ("js_asmjs_enabled", false),
     // rustls' bundled roots: there is no system certificate store
     ("network_use_webpki_roots", true),
+    // contenteditable: typing, Backspace and Enter in an editing host go through execCommand (browser WB5a)
+    ("dom_exec_command_enabled", true),
+    // where a frame's time goes (fork/servo painter.rs), every 2 s on the debug log while painting (WB5b)
+    ("paint_timing_log", true),
 ];
 
 /// The engine's private folder (its SID, 0xE0007008): profile, storage, caches.

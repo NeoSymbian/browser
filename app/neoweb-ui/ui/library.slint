@@ -1,0 +1,727 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// UI4 (browser-ui.md, WB5d): the library and settings, full-screen views over the browser: Bookmarks (br2-bookmarks),
+// History (br2-history), Downloads (br2-downloads) and Settings (br2-settings). The view is a kit layer while it
+// shows: Back (or ←) inside a folder goes up to the top level (the app does it), else it closes the view.
+import { Theme, Kit, Glyph, Header, SectionHeader, Switch, ChoiceSheet, Menu } from "@neoui/kit.slint";
+
+// A folder (detail "6 bookmarks"; letter unused) or a bookmark (detail = its address, a letter badge).
+export struct BookmarkRow {
+    title: string,
+    detail: string,
+    letter: string,
+    color: color,
+}
+
+// A History row: a day's header (`section`, the label in `title`), or a visit (detail "domain · HH:MM").
+export struct HistoryRow {
+    section: bool,
+    title: string,
+    detail: string,
+    letter: string,
+    color: color,
+}
+
+// A download: state 0 downloading, 1 paused, 2 done, 3 failed; kind 0 doc, 1 image, 2 other file (the Done icon);
+// progress 0..1.
+export struct DownloadRow {
+    name: string,
+    detail: string,
+    state: int,
+    kind: int,
+    progress: float,
+}
+
+// A row's tap, or a hold of 500 ms (the long-press menu) without the tap.
+component Press inherits TouchArea {
+    callback tap();
+    callback long();
+    property <bool> fired;
+    changed pressed => {
+        if self.pressed {
+            self.fired = false;
+        }
+    }
+    clicked => {
+        if !self.fired {
+            root.tap();
+        }
+    }
+    Timer {
+        interval: 500ms;
+        running: root.pressed && !root.fired;
+        triggered => {
+            root.fired = true;
+            root.long();
+        }
+    }
+}
+
+// A row: the pressed shade, the children, a hairline from `divider-x` to the right edge.
+component Row inherits Rectangle {
+    in property <length> divider-x: 60 * Theme.dp;
+    // where the finger is, for a long-press menu
+    out property <length> press-x: p.pressed-x;
+    out property <length> press-y: p.pressed-y;
+    callback tap();
+    callback long();
+    background: p.pressed ? Theme.pressed : transparent;
+    p := Press {
+        tap => {
+            root.tap();
+        }
+        long => {
+            root.long();
+        }
+    }
+
+    @children
+    Rectangle {
+        x: root.divider-x;
+        y: parent.height - self.height;
+        width: parent.width - self.x;
+        height: 1px;
+        background: Theme.header-hairline;
+    }
+}
+
+// The title (16/500) and the line under it (13.5, dim); web text in DejaVu Sans (its punctuation).
+component Lines inherits VerticalLayout {
+    in property <string> title;
+    in property <string> detail;
+    in property <string> title-font: "DejaVu Sans";
+    in property <string> detail-font;
+    alignment: center;
+    spacing: 3 * Theme.dp;
+    horizontal-stretch: 1;
+    min-width: 0;
+    Text {
+        text: root.title;
+        font-family: root.title-font;
+        color: Theme.text;
+        font-size: Theme.font-body;
+        font-weight: 500;
+        overflow: elide;
+    }
+
+    Text {
+        text: root.detail;
+        font-family: root.detail-font;
+        color: Theme.text-dim;
+        font-size: Theme.font-label;
+        overflow: elide;
+    }
+}
+
+// A 26 dp glyph with 3 dp each side (the boards' leading icon).
+component Lead inherits Rectangle {
+    in property <image> icon;
+    in property <color> tint: Theme.text-secondary;
+    width: 32 * Theme.dp;
+    Glyph {
+        source: root.icon;
+        size: 26 * Theme.dp;
+        colorize: root.tint;
+    }
+}
+
+// The site's letters on its colour, radius 8.
+component Badge inherits Rectangle {
+    in property <string> letter;
+    in property <length> size: 32 * Theme.dp;
+    width: self.size;
+    height: self.size;
+    border-radius: 8 * Theme.dp;
+    Text {
+        text: root.letter;
+        color: white;
+        font-size: root.size * 0.43;
+        font-weight: 700;
+    }
+}
+
+component Chevron inherits Glyph {
+    source: @image-url("@neoui/icons/sys/chevron_right.svg");
+    size: 20 * Theme.dp;
+    colorize: Theme.text-dim;
+}
+
+// A 40 dp round button around a glyph.
+component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <length> glyph: 22 * Theme.dp;
+    in property <color> tint: Theme.text-secondary;
+    callback clicked;
+    width: 40 * Theme.dp;
+    height: 40 * Theme.dp;
+    border-radius: self.width / 2;
+    background: t.pressed ? Theme.pressed : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    Glyph {
+        source: root.icon;
+        size: root.glyph;
+        colorize: root.tint;
+    }
+
+    t := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// The red "Clear browsing data" row: with the delete glyph (History) or a chevron (Settings).
+component ClearRow inherits Row {
+    in property <bool> glyph;
+    height: 56 * Theme.dp;
+    HorizontalLayout {
+        padding-left: (root.glyph ? 18 : 16) * Theme.dp;
+        padding-right: 12 * Theme.dp;
+        spacing: 14 * Theme.dp;
+        if root.glyph: Glyph {
+            y: (parent.height - self.height) / 2;
+            source: @image-url("@neoui/icons/sys/delete.svg");
+            size: 24 * Theme.dp;
+            colorize: Theme.danger;
+        }
+        Text {
+            text: "Clear browsing data";
+            color: Theme.danger;
+            font-size: Theme.font-body;
+            font-weight: 500;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        if !root.glyph: Chevron {
+                        y: (parent.height - self.height) / 2;
+                    }
+    }
+}
+
+// A Settings row: title, value, then a chevron or a switch.
+component SettingRow inherits Row {
+    in property <string> title;
+    in property <string> detail;
+    in property <bool> has-switch;
+    in-out property <bool> on;
+    callback toggled(bool);
+    height: 72 * Theme.dp;
+    divider-x: 16 * Theme.dp;
+    HorizontalLayout {
+        padding-left: 16 * Theme.dp;
+        padding-right: (root.has-switch ? 16 : 12) * Theme.dp;
+        spacing: (root.has-switch ? 14 : 10) * Theme.dp;
+        Lines {
+            title: root.title;
+            title-font: "";
+            detail: root.detail;
+        }
+
+        if !root.has-switch: Chevron {
+                        y: (parent.height - self.height) / 2;
+                    }
+        if root.has-switch: VerticalLayout {
+            alignment: center;
+            Switch {
+                on <=> root.on;
+                toggled(on) => {
+                    root.toggled(on);
+                }
+            }
+        }
+    }
+}
+
+export component LibraryView inherits Rectangle {
+    // 0 none, 1 Bookmarks, 2 History, 3 Downloads, 4 Settings
+    in-out property <int> screen;
+    // Bookmarks: the folder shown ("" = the top level, with the Folders section)
+    in property <string> folder;
+    in property <[BookmarkRow]> folders;
+    in property <[BookmarkRow]> bookmarks;
+    in property <[HistoryRow]> history;
+    in property <[DownloadRow]> downloading;
+    in property <[DownloadRow]> downloaded;
+    in-out property <string> query;
+    // Settings: the engine (index), text size (percent), cookies (0 allow all, 1 block third-party), the switches
+    in property <int> engine;
+    in property <int> text-size: 100;
+    in property <int> cookies: 1;
+    in-out property <bool> desktop;
+    in-out property <bool> javascript: true;
+    in-out property <bool> unsafe-certs;
+    callback act(string, int);
+    visible: root.screen != 0;
+    background: Theme.bg;
+
+    property <int> level;
+    property <int> seq: Kit.back-seq;
+    // the long-pressed row: kind 0 a bookmark, 1 a folder
+    property <int> held;
+    property <int> held-kind;
+
+    // Open screen `n` (0 closes): a public function, not a changed handler, so the kit layer is there at once.
+    public function show(n: int) {
+        if n != 0 && root.level == 0 {
+            root.level = Kit.push();
+        }
+        if n == 0 && root.level > 0 {
+            Kit.pop();
+            root.level = 0;
+        }
+        if header.searching {
+            header.close-search();
+        }
+        root.screen = n;
+    }
+
+    // ← or Back: up from a folder (the app shows the top level), else close
+    function back() {
+        if root.screen != 1 || root.folder == "" {
+            root.show(0);
+        }
+        root.act("library-back", 0);
+    }
+
+    changed seq => {
+        if Kit.take-back(root.level) {
+            root.back();
+        }
+    }
+
+    // nothing under the view takes a tap
+    TouchArea { }
+
+    header := Header {
+        y: 0;
+        has-back: true;
+        alt: true;
+        title: root.screen == 1 ? (root.folder != "" ? root.folder : "Bookmarks") : root.screen == 2 ? "History" : root.screen == 3 ? "Downloads" : "Settings";
+        title-font: root.screen == 1 && root.folder != "" ? "DejaVu Sans" : "";
+        search: root.screen == 1 || root.screen == 2;
+        search-first: true;
+        search-placeholder: root.screen == 1 ? "Search bookmarks" : "Search history";
+        tap-to-top: false;
+        actions: root.screen == 1 && root.folder == "" ? [{ icon: @image-url("@neoui/icons/sys/add.svg"), label: "New folder" }] : [];
+        menu: root.screen == 3 ? ["Clear the list", "Settings"] : root.screen == 4 ? [] : ["Settings"];
+        query <=> root.query;
+        back => {
+            root.back();
+        }
+        action(i) => {
+            root.act("bm-new-folder", 0);
+        }
+        menu-picked(i) => {
+            root.act("library-menu", i);
+        }
+        searched(t) => {
+            root.act(root.screen == 1 ? "bm-search" : "hist-search", 0);
+        }
+    }
+
+    Flickable {
+        y: Theme.header-h;
+        height: root.height - self.y;
+        content-height: col.preferred-height;
+        col := VerticalLayout {
+            alignment: start;
+            // br2-bookmarks
+            if root.screen == 1: VerticalLayout {
+                if root.folders.length > 0: SectionHeader {
+                    text: "Folders";
+                }
+                for f[i] in root.folders: Row {
+                    height: 56 * Theme.dp;
+                    accessible-role: button;
+                    accessible-label: f.title;
+                    tap => {
+                        root.act("bm-folder", i);
+                    }
+                    long => {
+                        root.held = i;
+                        root.held-kind = 1;
+                        root.hold-at(self.absolute-position.x + self.press-x, self.absolute-position.y + self.press-y);
+                        root.act("bm-folder-long", i);
+                        hold.show();
+                    }
+                    HorizontalLayout {
+                        padding-left: 16 * Theme.dp;
+                        padding-right: 12 * Theme.dp;
+                        spacing: 14 * Theme.dp;
+                        Lead {
+                            icon: @image-url("@neoui/icons/sys/folder.svg");
+                        }
+
+                        Lines {
+                            title: f.title;
+                            detail: f.detail;
+                        }
+
+                        Chevron {
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                }
+                if root.folder == "" && root.bookmarks.length > 0: SectionHeader {
+                    text: "Bookmarks";
+                }
+                for b[i] in root.bookmarks: Row {
+                    height: 72 * Theme.dp;
+                    accessible-role: button;
+                    accessible-label: b.title;
+                    tap => {
+                        root.act("bm-open", i);
+                    }
+                    long => {
+                        root.held = i;
+                        root.held-kind = 0;
+                        root.hold-at(self.absolute-position.x + self.press-x, self.absolute-position.y + self.press-y);
+                        root.act("bm-long", i);
+                        hold.show();
+                    }
+                    HorizontalLayout {
+                        padding-left: 16 * Theme.dp;
+                        padding-right: 12 * Theme.dp;
+                        spacing: 14 * Theme.dp;
+                        Badge {
+                            y: (parent.height - self.height) / 2;
+                            letter: b.letter;
+                            background: b.color;
+                        }
+
+                        Lines {
+                            title: b.title;
+                            detail: b.detail;
+                            detail-font: "DejaVu Sans";
+                        }
+                    }
+                }
+            }
+
+            // br2-history
+            if root.screen == 2: VerticalLayout {
+                ClearRow {
+                    glyph: true;
+                    divider-x: 0;
+                    tap => {
+                        root.act("hist-clear", 0);
+                    }
+                }
+                for h[i] in root.history: Rectangle {
+                    height: h.section ? Theme.section-h : 64 * Theme.dp;
+                    if h.section: SectionHeader {
+                        text: h.title;
+                    }
+                    if !h.section: Row {
+                        divider-x: 58 * Theme.dp;
+                        accessible-role: button;
+                        accessible-label: h.title;
+                        tap => {
+                            root.act("hist-open", i);
+                        }
+                        HorizontalLayout {
+                            padding-left: 16 * Theme.dp;
+                            padding-right: 12 * Theme.dp;
+                            spacing: 14 * Theme.dp;
+                            Badge {
+                                y: (parent.height - self.height) / 2;
+                                size: 28 * Theme.dp;
+                                letter: h.letter;
+                                background: h.color;
+                            }
+
+                            Lines {
+                                title: h.title;
+                                detail: h.detail;
+                                detail-font: "DejaVu Sans";
+                            }
+
+                            IconButton {
+
+                                y: (parent.height - self.height) / 2;
+                                icon: @image-url("@neoui/icons/sys/close.svg");
+                                label: "Remove " + h.title + " from history";
+                                glyph: 20 * Theme.dp;
+                                tint: Theme.text-dim;
+                                clicked => {
+                                    root.act("hist-remove", i);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // br2-downloads
+            if root.screen == 3: VerticalLayout {
+                if root.downloading.length > 0: SectionHeader {
+                    text: "Downloading";
+                }
+                for d[i] in root.downloading: Row {
+                    height: 88 * Theme.dp;
+                    HorizontalLayout {
+                        padding-left: 16 * Theme.dp;
+                        padding-right: 12 * Theme.dp;
+                        spacing: 14 * Theme.dp;
+                        Lead {
+                            icon: @image-url("icons/download.svg");
+                            tint: d.state == 3 ? Theme.danger : Theme.accent;
+                        }
+
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 6 * Theme.dp;
+                            horizontal-stretch: 1;
+                            min-width: 0;
+                            Text {
+                                text: d.name;
+                                font-family: "DejaVu Sans";
+                                color: Theme.text;
+                                font-size: Theme.font-body;
+                                font-weight: 500;
+                                overflow: elide;
+                            }
+
+                            Rectangle {
+                                height: 4 * Theme.dp;
+                                border-radius: 2 * Theme.dp;
+                                background: Theme.track;
+                                Rectangle {
+                                    x: 0;
+                                    width: parent.width * max(0, min(1, d.progress));
+                                    border-radius: 2 * Theme.dp;
+                                    background: d.state == 0 ? Theme.accent : Theme.text-dim;
+                                }
+                            }
+
+                            Text {
+                                text: d.detail;
+                                color: Theme.text-dim;
+                                font-size: Theme.font-label;
+                                overflow: elide;
+                            }
+                        }
+
+                        IconButton {
+
+                            y: (parent.height - self.height) / 2;
+                            icon: d.state == 0 ? @image-url("@neoui/icons/sys/pause.svg") : d.state == 1 ? @image-url("@neoui/icons/sys/play.svg") : @image-url("@neoui/icons/sys/refresh.svg");
+                            label: d.state == 0 ? "Pause download" : d.state == 1 ? "Resume download" : "Try again";
+                            clicked => {
+                                root.act("dl-pause", i);
+                            }
+                        }
+
+                        IconButton {
+
+                            y: (parent.height - self.height) / 2;
+                            icon: @image-url("@neoui/icons/sys/close.svg");
+                            label: "Cancel download";
+                            clicked => {
+                                root.act("dl-cancel", i);
+                            }
+                        }
+                    }
+                }
+                if root.downloaded.length > 0: SectionHeader {
+                    text: "Done";
+                }
+                for d[i] in root.downloaded: Row {
+                    height: 72 * Theme.dp;
+                    accessible-role: button;
+                    accessible-label: d.name;
+                    tap => {
+                        root.act("dl-open", i);
+                    }
+                    HorizontalLayout {
+                        padding-left: 16 * Theme.dp;
+                        padding-right: 12 * Theme.dp;
+                        spacing: 14 * Theme.dp;
+                        Lead {
+                            icon: d.kind == 0 ? @image-url("@neoui/icons/sys/doc.svg") : d.kind == 1 ? @image-url("@neoui/icons/sys/image.svg") : @image-url("@neoui/icons/sys/file.svg");
+                        }
+
+                        Lines {
+                            title: d.name;
+                            detail: d.detail;
+                        }
+
+                        // the 36 dp Open pill: hands the file to Files
+                        Rectangle {
+                            y: (parent.height - self.height) / 2;
+                            width: open-label.preferred-width + 32 * Theme.dp;
+                            height: 36 * Theme.dp;
+                            border-radius: self.height / 2;
+                            background: ot.pressed ? #3a3f47 : Theme.dialog-button;
+                            accessible-role: button;
+                            accessible-label: "Open " + d.name;
+                            open-label := Text {
+                                text: "Open";
+                                color: Theme.text;
+                                font-size: 14 * Theme.dp;
+                                font-weight: 600;
+                            }
+
+                            ot := TouchArea {
+                                clicked => {
+                                    root.act("dl-open", i);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // br2-settings
+            if root.screen == 4: VerticalLayout {
+                SectionHeader {
+                    text: "General";
+                }
+                SettingRow {
+                    title: "Search engine";
+                    detail: root.engines[root.engine];
+                    tap => {
+                        engine-sheet.current = root.engine;
+                        engine-sheet.open = true;
+                    }
+                }
+                SettingRow {
+                    title: "Text size";
+                    detail: root.text-size + "%";
+                    tap => {
+                        size-sheet.current = root.size-index(root.text-size);
+                        size-sheet.open = true;
+                    }
+                }
+                SettingRow {
+                    title: "Desktop site by default";
+                    detail: "Ask sites for the full layout";
+                    has-switch: true;
+                    on <=> root.desktop;
+                    tap => {
+                        root.desktop = !root.desktop;
+                        root.act("set-desktop", root.desktop ? 1 : 0);
+                    }
+                    toggled(on) => {
+                        root.act("set-desktop", on ? 1 : 0);
+                    }
+                }
+                SectionHeader {
+                    text: "Content";
+                }
+                SettingRow {
+                    title: "JavaScript";
+                    detail: root.javascript ? "On · interpreter only, no JIT" : "Off";
+                    has-switch: true;
+                    on <=> root.javascript;
+                    tap => {
+                        root.javascript = !root.javascript;
+                        root.act("set-js", root.javascript ? 1 : 0);
+                    }
+                    toggled(on) => {
+                        root.act("set-js", on ? 1 : 0);
+                    }
+                }
+                SectionHeader {
+                    text: "Privacy";
+                }
+                SettingRow {
+                    title: "Cookies";
+                    detail: root.cookies == 0 ? "Allow all" : "Allow · block third-party";
+                    tap => {
+                        cookie-sheet.current = root.cookies;
+                        cookie-sheet.open = true;
+                    }
+                }
+                ClearRow {
+                    divider-x: 16 * Theme.dp;
+                    tap => {
+                        root.act("set-clear", 0);
+                    }
+                }
+                // B10: off by default, so a certificate error offers only Back to safety
+                SettingRow {
+                    title: "Allow unsafe certificates";
+                    detail: root.unsafe-certs ? "Offer “Open the site anyway (unsafe)”" : "Error pages offer only Back to safety";
+                    has-switch: true;
+                    on <=> root.unsafe-certs;
+                    tap => {
+                        root.unsafe-certs = !root.unsafe-certs;
+                        root.act("set-unsafe", root.unsafe-certs ? 1 : 0);
+                    }
+                    toggled(on) => {
+                        root.act("set-unsafe", on ? 1 : 0);
+                    }
+                }
+                SectionHeader {
+                    text: "About";
+                }
+                SettingRow {
+                    title: "About NEOWEB";
+                    detail: "Servo 0.8.0 · NEOWEB.EXE";
+                    tap => {
+                        root.act("set-about", 0);
+                    }
+                }
+            }
+        }
+    }
+
+    // neoweb-core library::SearchEngine::ALL; the size sheet's rows are library::TEXT_SIZES
+    property <[string]> engines: ["DuckDuckGo", "Google", "Bing", "Startpage"];
+    pure function size-index(p: int) -> int {
+        p <= 80 ? 0 : p <= 90 ? 1 : p <= 100 ? 2 : p <= 115 ? 3 : p <= 130 ? 4 : 5
+    }
+
+    property <length> hold-x;
+    property <length> hold-y;
+    function hold-at(x: length, y: length) {
+        root.hold-x = min(x - root.absolute-position.x, root.width - Theme.menu-w - 8 * Theme.dp);
+        root.hold-y = y - root.absolute-position.y;
+    }
+
+    // the long-press menu at the finger (kit-menus): Edit · Move · Delete, or Rename · Delete for a folder
+    hold := Menu {
+        x: 0;
+        y: 0;
+        at-x: root.hold-x;
+        at-y: root.hold-y;
+        right-aligned: false;
+        bound: root.height;
+        items: root.held-kind == 1 ? ["Rename", "Delete"] : ["Edit", "Move", "Delete"];
+        destructive: root.held-kind == 1 ? 1 : 2;
+        picked(i) => {
+            if root.held-kind == 1 {
+                root.act(i == 0 ? "bm-folder-rename" : "bm-folder-delete", root.held);
+            } else {
+                root.act(i == 0 ? "bm-edit" : i == 1 ? "bm-move" : "bm-delete", root.held);
+            }
+        }
+    }
+
+    engine-sheet := ChoiceSheet {
+        title: "Search engine";
+        choices: root.engines;
+        chosen(i) => {
+            root.act("set-engine", i);
+        }
+    }
+
+    size-sheet := ChoiceSheet {
+        title: "Text size";
+        choices: ["80%", "90%", "100%", "115%", "130%", "150%"];
+        chosen(i) => {
+            root.act("set-text-size", i);
+        }
+    }
+
+    cookie-sheet := ChoiceSheet {
+        title: "Cookies";
+        choices: ["Allow all", "Block third-party"];
+        chosen(i) => {
+            root.act("set-cookies", i);
+        }
+    }
+}
