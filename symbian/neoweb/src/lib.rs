@@ -974,18 +974,18 @@ impl Model {
 
 /// A sixth of a frame, for Opened pages' cards.
 fn thumb(img: &slint::Image) -> slint::Image {
-    let Some(src) = img.to_rgba8() else {
+    let Some(src) = img.to_rgb8() else {
         return slint::Image::default();
     };
     let (w, h) = (src.width() / 6, src.height() / 6);
-    let mut dst = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(w, h);
+    let mut dst = slint::SharedPixelBuffer::<slint::Rgb8Pixel>::new(w, h);
     let from = src.as_slice();
     let sw = src.width() as usize;
     for (i, px) in dst.make_mut_slice().iter_mut().enumerate() {
         let (x, y) = (i % w as usize, i / w as usize);
         *px = from[y * 6 * sw + x * 6];
     }
-    slint::Image::from_rgba8(dst)
+    slint::Image::from_rgb8(dst)
 }
 
 /// A tab badge's colour from its site's name.

@@ -8,7 +8,7 @@ use e32::ipc::{Session, TIpcArgs, TVersion};
 use e32::process::Process;
 use e32::sys::{self, TPtr8, TPtrC8, err};
 use neoweb_proto::{Command, EVENT_MAX, Event, FrameHeader, SERVER_NAME, VERSION, func};
-use slint::{Image, Rgba8Pixel, SharedPixelBuffer};
+use slint::{Image, Rgb8Pixel, SharedPixelBuffer};
 
 const KERR_CORRUPT: i32 = -20;
 
@@ -139,16 +139,25 @@ impl Engine {
                 stride * height as usize,
             )
         };
-        // shortcut: one copy per frame plus Slint's blit, use a neoapp raw blit if measured slow.
-        let mut pixels = SharedPixelBuffer::<Rgba8Pixel>::new(width, height);
+        // An opaque RGB image (WB5b): Slint's software renderer copies it, where an RGBA one is blended per pixel
+        // (measured on the Pixel: 41-56 ms a frame to draw the RGBA page). shortcut: still one copy per frame.
+        let mut pixels = SharedPixelBuffer::<Rgb8Pixel>::new(width, height);
+        let w = width as usize;
         for (dst, src) in pixels
             .make_mut_bytes()
-            .chunks_exact_mut(row_bytes)
+            .chunks_exact_mut(w * 3)
             .zip(source.chunks_exact(stride))
         {
-            dst.copy_from_slice(&src[..row_bytes]);
+            for (d, s) in dst
+                .as_chunks_mut::<3>()
+                .0
+                .iter_mut()
+                .zip(src[..row_bytes].as_chunks::<4>().0)
+            {
+                *d = [s[0], s[1], s[2]];
+            }
         }
-        Ok(Image::from_rgba8(pixels))
+        Ok(Image::from_rgb8(pixels))
     }
 }
 
