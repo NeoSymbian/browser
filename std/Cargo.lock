@@ -3530,6 +3530,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "neoweb-core"
+version = "0.1.0"
+dependencies = [
+ "neoweb-proto",
+]
+
+[[package]]
 name = "neoweb-proto"
 version = "0.1.0"
 
@@ -5282,7 +5289,6 @@ dependencies = [
  "servo-config",
  "servo-constellation",
  "servo-constellation-traits",
- "servo-default-resources",
  "servo-embedder-traits",
  "servo-fonts",
  "servo-geometry",
@@ -8152,13 +8158,16 @@ dependencies = [
  "image",
  "ipc-channel",
  "log",
+ "neoweb-core",
  "neoweb-proto",
  "rustls",
  "servo",
+ "servo-default-resources",
  "surfman",
  "swgl",
  "ureq",
  "url",
+ "webpki-roots",
 ]
 
 [[package]]

@@ -8,8 +8,8 @@ import "@neoui/fonts/NeoSans-Bold.ttf";
 import "@neoui/fonts/DejaVuSans.ttf";
 import { Theme, Kit, Scroll, Glyph, HeaderButton, KeyboardFocus } from "@neoui/kit.slint";
 import { FieldInput } from "@neoui/components/controls.slint";
-import { CrashedPage, FakePages, WebPage } from "pages.slint";
-import { PromptSheet, SelectSheet, UploadSheet, LoginSheet, OptionsSheet, LinkMenu, SelectRow, RecentFile } from "sheets.slint";
+import { CaptiveBanner, CertErrorPage, CrashedPage, FakePages, OfflinePage, WebPage } from "pages.slint";
+import { PromptSheet, SelectSheet, UploadSheet, LoginSheet, OptionsSheet, LinkMenu, SiteInfoSheet, SelectRow, RecentFile } from "sheets.slint";
 import { TabsView, TabCard } from "tabs.slint";
 import { LibraryView, BookmarkRow, HistoryRow, DownloadRow } from "library.slint";
 
@@ -50,9 +50,10 @@ export struct ShortcutTile {
 // History: "hist-open" i (a row of history-rows), "hist-remove" i, "hist-clear", "hist-search"; Downloads:
 // "dl-pause" i (pause, resume or retry a row of downloading), "dl-cancel" i, "dl-open" i (a row of downloaded);
 // Settings: "set-engine" i, "set-text-size" i (neoweb-core TEXT_SIZES), "set-desktop" 0/1, "set-js" 0/1,
-// "set-cookies" i (0 allow all, 1 block third-party), "set-clear", "set-unsafe" 0/1, "set-about".
+// "set-cookies" i (0 allow all, 1 block third-party), "set-clear", "set-unsafe" 0/1, "set-about"; UI5: "safety"
+// (Back to safety), "cert-allow" (Open the site anyway), "retry", "check-wifi", "captive-dismiss", "site-clear".
 export global BrowserState {
-    // 0 Start, 1–3 FakePage boards in host previews, 4 engine frame, 5 crashed
+    // 0 Start, 1–3 FakePage boards in host previews, 4 engine frame, 5 crashed, 6 certificate error, 7 not loaded
     in property <int> page;
     in property <image> frame;
     // neoweb-core Security: 0 none (the empty header), 1 secure, 2 not secure
@@ -123,6 +124,25 @@ export global BrowserState {
     in-out property <bool> settings-desktop;
     in-out property <bool> settings-js: true;
     in-out property <bool> settings-unsafe;
+    // br2-cert-error / br2-offline (UI5): the error page's host and texts (neoweb-core safety)
+    in property <string> error-host;
+    in property <string> error-title;
+    in property <string> error-text;
+    in property <string> error-code;
+    in property <string> cert-to;
+    in property <string> cert-by;
+    in property <string> cert-valid;
+    // br2-captive: the Wi-Fi network whose login page this is ("" = no banner)
+    in property <string> captive-ssid;
+    // br2-siteinfo: the sheet's rows; site-checked once the engine answered
+    in property <string> site-title;
+    in property <string> site-initial;
+    in property <bool> site-checked;
+    in property <string> site-tls;
+    in property <string> site-by;
+    in property <string> site-until;
+    in property <string> site-cookies;
+    in property <string> site-error;
     callback act(string, int);
 }
 
@@ -656,7 +676,7 @@ export component BrowserApp inherits Window {
     default-font-family: "NeoSans";
     background: Theme.bg;
     // neoapp sizes the window in surface pixels. Use the same bounds for the image, Resize and page touches.
-    out property <int> page-top-px: round(Theme.header-h / 1px);
+    out property <int> page-top-px: round((Theme.header-h + (BrowserState.captive-ssid != "" ? 60 * Theme.dp : 0)) / 1px);
     out property <int> page-width-px: round(root.width / 1px);
     // br2-form: with the keyboard up the page ends at the keyboard (679 − 48 − 276 = 355 dp), over the footer
     out property <int> page-height-px: max(0, round((root.height - (BrowserState.keyboard-px > 0 ? BrowserState.keyboard-px * 1px : Theme.footer-h)) / 1px) - page-top-px);
@@ -677,6 +697,30 @@ export component BrowserApp inherits Window {
         if BrowserState.page == 5: CrashedPage {
             reload => { BrowserState.act("reload", 0); }
         }
+        if BrowserState.page == 6: CertErrorPage {
+            host: BrowserState.error-host;
+            sentence: BrowserState.error-text;
+            issued-to: BrowserState.cert-to;
+            issued-by: BrowserState.cert-by;
+            valid: BrowserState.cert-valid;
+            code: BrowserState.error-code;
+            allow-unsafe: BrowserState.settings-unsafe;
+            back-to-safety => { BrowserState.act("safety", 0); }
+            open-anyway => { BrowserState.act("cert-allow", 0); }
+        }
+        if BrowserState.page == 7: OfflinePage {
+            title: BrowserState.error-title;
+            host: BrowserState.error-host;
+            cause: BrowserState.error-text;
+            code: BrowserState.error-code;
+            retry => { BrowserState.act("retry", 0); }
+            check-wifi => { BrowserState.act("check-wifi", 0); }
+        }
+    }
+    if !BrowserState.editing && BrowserState.captive-ssid != "": CaptiveBanner {
+        y: Theme.header-h;
+        ssid: BrowserState.captive-ssid;
+        dismissed => { BrowserState.act("captive-dismiss", 0); }
     }
     // The host's reading boards exercise the sliding chrome over a full-height stand-in page.
     if !BrowserState.editing && BrowserState.page >= 1 && BrowserState.page <= 3: FakePages {
@@ -801,7 +845,7 @@ export component BrowserApp inherits Window {
     }
 
     // The page's sheets, over everything (UI3): 0 closes them (unanswered), 1 prompt, 2 select, 3 upload, 4 save
-    // password; UI2: 5 the link menu, 6 the Options panel. Each answers with act() and closes itself.
+    // password; UI2: 5 the link menu, 6 the Options panel; UI5: 7 Site info. Each answers with act() and closes itself.
     public function show-sheet(n: int) {
         prompt.open = n == 1;
         select.open = n == 2;
@@ -809,8 +853,9 @@ export component BrowserApp inherits Window {
         login.open = n == 4;
         link-menu.open = n == 5;
         options.open = n == 6;
+        site-info.open = n == 7;
     }
-    out property <bool> sheet-open: prompt.open || select.open || upload.open || login.open || link-menu.open || options.open;
+    out property <bool> sheet-open: prompt.open || select.open || upload.open || login.open || link-menu.open || options.open || site-info.open;
     prompt := PromptSheet {
         // br2-js-prompt: it sits on the keyboard
         y: 0;
@@ -856,6 +901,20 @@ export component BrowserApp inherits Window {
         answered(i) => {
             BrowserState.act("login", i);
         }
+    }
+
+    site-info := SiteInfoSheet {
+        host: BrowserState.domain;
+        page-title: BrowserState.site-title;
+        initial: BrowserState.site-initial;
+        secure: BrowserState.security == 1;
+        checked: BrowserState.site-checked;
+        tls: BrowserState.site-tls;
+        issued-by: BrowserState.site-by;
+        valid-until: BrowserState.site-until;
+        cookies: BrowserState.site-cookies;
+        error: BrowserState.site-error;
+        clear => { BrowserState.act("site-clear", 0); }
     }
 
     options := OptionsSheet {

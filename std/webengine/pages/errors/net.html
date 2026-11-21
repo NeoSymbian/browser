@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- NEOWEBE's network error page (browser UI5): blank under NEOWEB's own br2-offline page. Servo fills in reason;
+     the engine fills in the token. -->
+<meta name="viewport" content="width=device-width">
+<title>Page not loaded</title>
+<style>html,body{margin:0;height:100%;background:#101215}</style>
+<script type="text/plain" id="reason">${reason}</script>
+<script>
+if (window.top === window) {
+  console.log('neoweb:error ${token} net - ' + document.getElementById('reason').textContent);
+}
+</script>

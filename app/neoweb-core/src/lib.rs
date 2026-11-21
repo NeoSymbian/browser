@@ -8,6 +8,7 @@
 //! - [`input`]: the address bar's text and suggestions (`br2-address`); [`chrome`]: hiding on scroll, loading;
 //! - [`controls`]: the page's controls (Back order, script dialogs, uploads; WB5a);
 //! - [`library`]: bookmarks, history, downloads and settings, and their saved text (UI4);
+//! - [`safety`]: certificates and network errors for the safety pages (UI5);
 //! - [`Engine`] / [`FakeEngine`]: the stand-in used by the host tests.
 #![no_std]
 
@@ -17,6 +18,7 @@ pub mod chrome;
 pub mod controls;
 pub mod input;
 pub mod library;
+pub mod safety;
 pub mod start;
 pub mod tabs;
 
@@ -36,6 +38,17 @@ pub struct LiveTab {
     pub forward: bool,
     pub loading: chrome::Loading,
     pub crashed: bool,
+    /// the page didn't load: NEOWEB shows its certificate error or No connection page (UI5), until the next load
+    pub error: Option<PageError>,
+}
+
+/// What [`Event::PageError`] said.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageError {
+    pub kind: neoweb_proto::PageErrorKind,
+    pub reason: String,
+    pub host: String,
+    pub cert: safety::CertSummary,
 }
 
 impl LiveTab {
@@ -45,7 +58,33 @@ impl LiveTab {
             return;
         }
         match event {
-            Event::Load(phase) => self.loading.update(phase),
+            Event::Load(phase) => {
+                if phase == neoweb_proto::Load::Started {
+                    self.error = None;
+                }
+                self.loading.update(phase)
+            }
+            Event::PageError {
+                kind,
+                reason,
+                host,
+                issued_to,
+                issued_by,
+                valid_from,
+                valid_until,
+            } => {
+                self.error = Some(PageError {
+                    kind,
+                    reason,
+                    host,
+                    cert: safety::CertSummary {
+                        issued_to,
+                        issued_by,
+                        valid_from,
+                        valid_until,
+                    },
+                })
+            }
             Event::Title(title) => self.title = title,
             Event::Url(url) => self.url = url,
             Event::History { back, forward } => {
@@ -238,6 +277,28 @@ mod tests {
             tab.apply(Event::History { back, forward });
             assert_eq!((tab.back, tab.forward), (back, forward));
         }
+    }
+
+    #[test]
+    fn a_page_error_lasts_until_the_next_load() {
+        let mut tab = LiveTab::default();
+        tab.apply(Event::Load(Load::Started));
+        tab.apply(Event::PageError {
+            kind: neoweb_proto::PageErrorKind::Net,
+            reason: "dns error".into(),
+            host: "github.com".into(),
+            issued_to: String::new(),
+            issued_by: String::new(),
+            valid_from: String::new(),
+            valid_until: String::new(),
+        });
+        tab.apply(Event::Load(Load::Complete));
+        assert_eq!(
+            tab.error.as_ref().map(|e| e.host.as_str()),
+            Some("github.com")
+        );
+        tab.apply(Event::Load(Load::Started)); // Retry
+        assert_eq!(tab.error, None);
     }
 
     #[test]
