@@ -7,6 +7,7 @@
 //! - [`start`]: the start page's shortcuts (`br2-start`);
 //! - [`input`]: the address bar's text and suggestions (`br2-address`); [`chrome`]: hiding on scroll, loading;
 //! - [`controls`]: the page's controls (Back order, script dialogs, uploads; WB5a);
+//! - [`library`]: bookmarks, history, downloads and settings, and their saved text (UI4);
 //! - [`Engine`] / [`FakeEngine`]: the stand-in used by the host tests.
 #![no_std]
 
@@ -15,6 +16,7 @@ extern crate alloc;
 pub mod chrome;
 pub mod controls;
 pub mod input;
+pub mod library;
 pub mod start;
 pub mod tabs;
 

@@ -112,6 +112,24 @@ impl Shot {
         self.settle();
     }
 
+    /// A hold at (x, y) dp: pressed past the kit's 500 ms long-press, then released.
+    pub fn long_press(&self, x: f32, y: f32) {
+        let position = LogicalPosition::new(x * DP, y * DP);
+        let w = self.window.window();
+        w.dispatch_event(WindowEvent::PointerMoved { position });
+        w.dispatch_event(WindowEvent::PointerPressed {
+            position,
+            button: PointerEventButton::Left,
+        });
+        self.settle();
+        w.dispatch_event(WindowEvent::PointerReleased {
+            position,
+            button: PointerEventButton::Left,
+        });
+        w.dispatch_event(WindowEvent::PointerExited);
+        self.settle();
+    }
+
     pub fn settle(&self) {
         NOW.set(NOW.get() + core::time::Duration::from_secs(1));
         slint::platform::update_timers_and_animations();
