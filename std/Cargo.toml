@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Rust with std on NeoSymbian (docs browser-std.md, WB2c): target_os = "symbian" through the NeoSymbian/rust and
+# Rust with std on NeoSymbian (docs browser/wb2-std.md, WB2c): target_os = "symbian" through the NeoSymbian/rust and
 # NeoSymbian/libc forks. Build with the `neosymbian` toolchain (tools/neosymbian-toolchain.sh) and `cargo sym`.
 [workspace]
 resolver = "3"
@@ -18,7 +18,7 @@ libc = { git = "https://github.com/NeoSymbian/libc", branch = "neosymbian" }
 mio = { git = "https://github.com/NeoSymbian/mio", branch = "neosymbian" }
 socket2 = { git = "https://github.com/NeoSymbian/socket2", branch = "neosymbian" }
 tokio = { git = "https://github.com/NeoSymbian/tokio", branch = "neosymbian" }
-# Servo (WB4, docs browser.md): crates without a target_os = "symbian" path, each forked on branch neosymbian
+# Servo (WB4, docs browser/wb4-servo.md): crates without a target_os = "symbian" path, each forked on branch neosymbian
 memmap2 = { git = "https://github.com/NeoSymbian/memmap2", branch = "neosymbian" }
 tempfile = { git = "https://github.com/NeoSymbian/tempfile", branch = "neosymbian" }
 parking_lot_core = { git = "https://github.com/NeoSymbian/parking_lot", branch = "neosymbian" }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! MIXTEST.EXE (docs browser-std.md, WB2c): one EXE mixing Rust's std, the e32 crate and Symbian C++, the WB2 gate.
+//! MIXTEST.EXE (docs browser/wb2-std.md, WB2c): one EXE mixing Rust's std, the e32 crate and Symbian C++, the WB2 gate.
 //! It also checks the NeoSymbian/libc fork against P.I.P.S.'s own headers: the C++ side (mixtest.cpp) carries
 //! PIPSPROB's layout table, compiled against them.
 

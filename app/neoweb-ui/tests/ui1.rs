@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// UI1 (docs browser-ui.md): editing the address with suggestions, loading, reading with the chrome hidden; boards
+// UI1 (docs browser/ui-screens.md): editing the address with suggestions, loading, reading with the chrome hidden; boards
 // br2-address, br2-loading, br2-reading.
 mod common;
 use common::{GESTURES, at};

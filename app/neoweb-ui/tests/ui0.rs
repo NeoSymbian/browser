@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// UI0 (docs browser-ui.md): the start page and a page with the chrome, in Gestures and Buttons mode, and every header
+// UI0 (docs browser/ui-screens.md): the start page and a page with the chrome, in Gestures and Buttons mode, and every header
 // and footer state; boards br2-start, br2-start-buttons, br2-page, br2-page-buttons, br2-footer-states.
 mod common;
 use common::{BUTTONS, GESTURES, Shot, at, save, strings};

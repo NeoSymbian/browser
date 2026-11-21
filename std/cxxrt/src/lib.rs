@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! The C++ runtime for ARMv7 C++ code linked into a NeoSymbian EXE (docs browser-js.md): GCC's thread-safe static
+//! The C++ runtime for ARMv7 C++ code linked into a NeoSymbian EXE (docs browser/wb3-js.md): GCC's thread-safe static
 //! initialisation (`__cxa_guard_*`), emulated TLS for `thread_local` (`__emutls_get_address`), over P.I.P.S.'s
 //! pthreads, libstdc++'s `std::__throw_*` helpers as fatal errors (C++ here is built without exceptions; libstdc++'s
 //! own `.a` is never linked whole, only its self-contained tree/list/hashtable pieces, build.rs) and the stack

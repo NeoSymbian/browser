@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """Writes layout.inc for pipsprobe.cpp: one {name, value} row per size, field offset and constant the Rust libc and std
-ports need (docs browser-std.md). A constant P.I.P.S. lacks is printed as absent, not a compile error."""
+ports need (docs browser/wb2-std.md). A constant P.I.P.S. lacks is printed as absent, not a compile error."""
 
 SIZES = """long size_t ssize_t off_t time_t clock_t pid_t uid_t gid_t mode_t dev_t ino_t nlink_t blksize_t blkcnt_t
 socklen_t sa_family_t in_port_t in_addr_t nfds_t wchar_t pthread_t pthread_attr_t pthread_mutex_t pthread_mutexattr_t

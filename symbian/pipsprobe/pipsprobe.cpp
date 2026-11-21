@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// PIPSPROB.EXE's C side (docs browser-std.md, browser.md WB2b): P.I.P.S. (Open C) as Rust's std and libc ports will
+// PIPSPROB.EXE's C side (docs browser/wb2-std.md WB2b): P.I.P.S. (Open C) as Rust's std and libc ports will
 // see it. layout.inc (gen_layout.py) gives the sizes, offsets and constants; the checks below call each function std
 // needs and report what happened. The Rust side (src/lib.rs) prints both over the debug port.
 #include <stddef.h>
@@ -346,7 +346,7 @@ static int c_memory(char* d, int n) {
     close(fd);
     unlink("c:\\pipsmap.tmp");
     if (m == MAP_FAILED) NOTSUP("page %ld, malloc/realloc ok; mmap(file) errno %d; no MAP_ANON", page, merr);
-    OK("page %ld, malloc/realloc ok, mmap(file) ok, mprotect -> %d (no effect: browser.md); no MAP_ANON", page, pr);
+    OK("page %ld, malloc/realloc ok, mmap(file) ok, mprotect -> %d (no effect: docs browser/wb2-std.md); no MAP_ANON", page, pr);
 }
 
 static int c_pipe_select(char* d, int n) {

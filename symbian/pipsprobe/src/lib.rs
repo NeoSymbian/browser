@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! PIPSPROB.EXE (docs browser-std.md, browser.md WB2b): runs the C checks of pipsprobe.cpp (threads, locks, clocks,
+//! PIPSPROB.EXE (docs browser/wb2-std.md WB2b): runs the C checks of pipsprobe.cpp (threads, locks, clocks,
 //! files, env, memory, pipes, sockets on P.I.P.S.) and prints the C layout table the Rust libc port needs, all over
 //! the debug port: `pips <check> ... ok|FAILED|NOTSUP: <detail>`, then `layout <name> = <value>`. It also calls libc
 //! straight from Rust (malloc, getpid, write), which proves a Rust EXE imports from libc.dll.

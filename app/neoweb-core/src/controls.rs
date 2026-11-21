@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! The page's controls in NEOWEB (WB5a, browser-ui.md UI3): what Back does next, script dialogs as the shell's QUERY,
+//! The page's controls in NEOWEB (WB5a, browser/ui-screens.md UI3): what Back does next, script dialogs as the shell's QUERY,
 //! and where an uploaded file goes for the engine.
 
 use alloc::format;
@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use neoweb_proto::DialogKind;
 
 /// What Back does next, after the kit's sheets (they close first) and the shell's keyboard (the shell hides it
-/// before the app sees Back): browser-ui.md's Back order.
+/// before the app sees Back): browser/ui.md's Back order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BackStep {
     /// Leave the address bar.

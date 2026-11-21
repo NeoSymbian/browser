@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// UI4 (docs browser-ui.md, WB5d): the library and settings, full-screen views over the browser; boards
+// UI4 (docs browser/ui-screens.md, WB5d): the library and settings, full-screen views over the browser; boards
 // br2-bookmarks, br2-history, br2-downloads, br2-settings. Each is a kit layer: Back closes it (or leaves a folder).
 mod common;
 use common::GESTURES;

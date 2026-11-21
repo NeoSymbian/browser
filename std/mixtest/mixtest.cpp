@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// MIXTEST.EXE's C++ side (docs browser-std.md, WB2c): one EXE mixing Rust with std, e32 and Symbian C++.
+// MIXTEST.EXE's C++ side (docs browser/wb2-std.md, WB2c): one EXE mixing Rust with std, e32 and Symbian C++.
 // - mix_cpp(): Symbian C++ (a CBase array under TRAP, a descriptor) that calls back into Rust;
 // - mix_layout_*(): P.I.P.S.'s sizes, offsets and constants as its headers give them (PIPSPROB's layout.inc), for
 //   the Rust side to compare with the NeoSymbian/libc fork.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! NETTEST.EXE (docs browser-std.md, WB2d): Tokio's current_thread runtime on NeoSymbian (mio's poll selector over
+//! NETTEST.EXE (docs browser/wb2-std.md, WB2d): Tokio's current_thread runtime on NeoSymbian (mio's poll selector over
 //! P.I.P.S.), then a plain HTTP fetch with std and with Tokio over NeoNet. Prints `net <name> ... ok|FAILED|skipped`.
 
 use std::io::{Read, Write};
@@ -122,7 +122,7 @@ fn std_http() -> Outcome {
         Some(s) => s,
         None => return Failed(format!("connect to {addrs:?} failed")),
     };
-    // P.I.P.S. has no SO_RCVTIMEO (ENOPROTOOPT, browser-std.md): said in the result, the fetch goes on without it
+    // P.I.P.S. has no SO_RCVTIMEO (ENOPROTOOPT, browser/wb2-std.md): said in the result, the fetch goes on without it
     let timeout = match s.set_read_timeout(Some(Duration::from_secs(10))) {
         Ok(()) => "",
         Err(e) if e.raw_os_error() == Some(libc::ENOPROTOOPT) => " (no SO_RCVTIMEO)",

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! STDTEST.EXE (docs browser-std.md, WB2c): Rust's std on NeoSymbian, one check per area std's own tests cover:
+//! STDTEST.EXE (docs browser/wb2-std.md, WB2c): Rust's std on NeoSymbian, one check per area std's own tests cover:
 //! threads, locks, time, files, environment, collections, formatting, the allocator and sockets. Each check prints
 //! `std <name> ... ok|FAILED|skipped: <detail>` (stdout is the kernel debug port), then a summary line.
 

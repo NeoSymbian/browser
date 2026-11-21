@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! NEOWEB's logic, free of Slint and Symbian so it is tested on the host (docs `browser-ui.md`).
+//! NEOWEB's logic, free of Slint and Symbian so it is tested on the host (docs `browser/ui.md`).
 //!
 //! - [`Tab`]: one opened page's history (← →, `can_back`);
 //! - [`LiveTab`]: the tab and chrome state reported by the engine process;
@@ -171,7 +171,7 @@ pub struct Loaded {
     pub page: FakePage,
 }
 
-/// A stand-in page engine for the host tests (browser-ui.md "Engine").
+/// A stand-in page engine for the host tests (browser/ui.md "Engine").
 pub trait Engine {
     fn load(&mut self, url: &str) -> Loaded;
 }

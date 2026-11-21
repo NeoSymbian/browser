@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# The host workspace of the browser app NEOWEB (docs browser-ui.md): the pure parts (neoweb-core, Apache-2.0) and the
+# The host workspace of the browser app NEOWEB (docs browser/ui.md): the pure parts (neoweb-core, Apache-2.0) and the
 # Slint screens (neoweb-ui, GPL-3.0: it links Slint), tested on the host. The EXE is the separate ../symbian workspace
 # (armv5te, nightly build-std); the Servo cross-build is ../crates (Docker only).
 [workspace]

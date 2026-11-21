@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// UI2 (docs browser-ui.md, WB5c): Opened pages, the Options panel, the link's long-press menu, the text selection bar
+// UI2 (docs browser/ui-screens.md, WB5c): Opened pages, the Options panel, the link's long-press menu, the text selection bar
 // and find in page; boards br2-tabs, br2-menu, br2-link-menu, br2-select, br2-find.
 mod common;
 use common::{DP, GESTURES, at};

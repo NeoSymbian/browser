@@ -6,5 +6,5 @@
 [alias]
 arm = "build --release --target armv5te-none-eabi -Zbuild-std=core,alloc,compiler_builtins -Zbuild-std-features=compiler-builtins-mem"
 
-# ARMv7-A + NEON, softfp (e32-rs targets/armv7a-neosymbian-eabi.json, browser.md WB2a): the WB2 test EXEs
+# ARMv7-A + NEON, softfp (e32-rs targets/armv7a-neosymbian-eabi.json, browser/wb2-std.md WB2a): the WB2 test EXEs
 arm7 = "build --release --target targets/armv7a-neosymbian-eabi.json -Zjson-target-spec -Zbuild-std=core,alloc,compiler_builtins -Zbuild-std-features=compiler-builtins-mem"

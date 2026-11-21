@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
-# NEOWEBE.EXE (docs browser.md WB4): Servo 0.8.0 on NeoSymbian, the browser's engine process. It grows from
+# NEOWEBE.EXE (docs browser/wb4-servo.md): Servo 0.8.0 on NeoSymbian, the browser's engine process. It grows from
 # crates/neoweb-host (WB0's Linux embedder): the SWGL rendering context and the Servo loop.
 [lib]
 crate-type = ["staticlib"]

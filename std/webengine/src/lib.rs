@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! NEOWEBE.EXE (docs browser.md WB4): Servo on NeoSymbian, rendered with SWGL.
+//! NEOWEBE.EXE (docs browser/wb4-servo.md): Servo on NeoSymbian, rendered with SWGL.
 //!
 //! `neowebe --shot URL OUT.png [--size WxH] [--dpr D] [--timeout SECS]` loads one page headless, waits until it is
 //! loaded and painted, writes the frame as a PNG and prints the time, frames and memory (WB4b).

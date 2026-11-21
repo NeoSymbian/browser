@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""PIPSPROB.EXE's serial output -> the Markdown tables of docs/browser-std.md: the checks, then the layout values.
+"""PIPSPROB.EXE's serial output -> the Markdown tables of docs/browser/wb2-std.md: the checks, then the layout values.
 Usage: tools/pips_layout.py serial.log > tables.md"""
 import re
 import sys
