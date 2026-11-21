@@ -5,6 +5,8 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use crate::library::Bookmark;
+
 /// Where typed text goes: an address as typed (with https:// added), else a DuckDuckGo search.
 pub fn parse(text: &str) -> String {
     let t = text.trim();
@@ -29,7 +31,7 @@ pub fn search(text: &str) -> String {
 }
 
 /// Percent-encoding for a query value: unreserved bytes stay, a space is '+'.
-fn encode(s: &str) -> String {
+pub(crate) fn encode(s: &str) -> String {
     let mut out = String::new();
     for b in s.bytes() {
         match b {
@@ -55,16 +57,19 @@ pub enum Suggestion {
 }
 
 /// The rows for `text`: up to 3 visited pages (newest first), then up to 2 bookmarks, whose title or address contains
-/// it (any case), then "Search for …". `visited` and `bookmarks` are (title, address), oldest first.
+/// it (any case), then "Search for …". `visited` is (title, address), oldest first ([`History::pairs`]).
+///
+/// [`History::pairs`]: crate::library::History::pairs
 pub fn suggest(
     text: &str,
     visited: &[(String, String)],
-    bookmarks: &[(String, String)],
+    bookmarks: &[Bookmark],
 ) -> Vec<Suggestion> {
     let t = text.trim().to_lowercase();
-    let hit = |(title, url): &&(String, String)| {
+    let matches = |title: &str, url: &str| {
         !t.is_empty() && (title.to_lowercase().contains(&t) || url.to_lowercase().contains(&t))
     };
+    let hit = |(title, url): &&(String, String)| matches(title, url);
     let mut out: Vec<Suggestion> = Vec::new();
     for (title, url) in visited.iter().rev().filter(hit) {
         if out.len() == 3 {
@@ -80,9 +85,9 @@ pub fn suggest(
     out.extend(
         bookmarks
             .iter()
-            .filter(hit)
+            .filter(|b| matches(&b.title, &b.url))
             .take(2)
-            .map(|(a, b)| Suggestion::Bookmark(a.clone(), b.clone())),
+            .map(|b| Suggestion::Bookmark(b.title.clone(), b.url.clone())),
     );
     if !t.is_empty() {
         out.push(Suggestion::Search(text.trim().into()));
@@ -126,7 +131,11 @@ mod tests {
             ),
             s("EKA2 – Wikipedia", "https://en.wikipedia.org/wiki/EKA2"),
         ];
-        let marks = [s("NeoSymbian", "https://github.com/NeoSymbian")];
+        let marks = [Bookmark {
+            title: "NeoSymbian".into(),
+            url: "https://github.com/NeoSymbian".into(),
+            folder: None,
+        }];
         let got = suggest("wiki", &visited, &marks);
         assert_eq!(
             got,

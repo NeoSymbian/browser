@@ -11,8 +11,9 @@ import { FieldInput } from "@neoui/components/controls.slint";
 import { CrashedPage, FakePages, WebPage } from "pages.slint";
 import { PromptSheet, SelectSheet, UploadSheet, LoginSheet, OptionsSheet, LinkMenu, SelectRow, RecentFile } from "sheets.slint";
 import { TabsView, TabCard } from "tabs.slint";
+import { LibraryView, BookmarkRow, HistoryRow, DownloadRow } from "library.slint";
 
-export { Theme, Kit, Scroll, KeyboardFocus, SelectRow, RecentFile, TabCard }
+export { Theme, Kit, Scroll, KeyboardFocus, SelectRow, RecentFile, TabCard, BookmarkRow, HistoryRow, DownloadRow }
 
 // A point on the app's surface (dp), e.g. a selection handle's: the selection's edge at the top of its line.
 export struct Spot {
@@ -42,7 +43,14 @@ export struct ShortcutTile {
 // "tab-close" i, "new-tab", "tabs-options", "tabs-back" (Back closed Opened pages), "option" i (the Options panel:
 // 0 New tab, 1 Find in page, 2 Share, 3 Copy link, 4 Desktop site, 5 Bookmarks, 6 History, 7 Downloads, 8 Settings),
 // "link" i (0 Open in new tab, 1 Copy link, 2 Download link, 3 Share), "link-cancel", "selection" i (0 Copy,
-// 1 Select all, 2 Search), "find-edited", "find-prev", "find-next" (also Enter), "find-close".
+// 1 Select all, 2 Search), "find-edited", "find-prev", "find-next" (also Enter), "find-close"; UI4 (WB5d), the library
+// views: "library-back" (← or Back; the view closed itself unless a folder was open), "library-menu" i (⋮),
+// Bookmarks: "bm-open" i, "bm-folder" i, "bm-new-folder", "bm-search" (each change of library-query), "bm-long" i
+// then "bm-edit" i / "bm-move" i / "bm-delete" i, "bm-folder-long" i then "bm-folder-rename" i / "bm-folder-delete" i;
+// History: "hist-open" i (a row of history-rows), "hist-remove" i, "hist-clear", "hist-search"; Downloads:
+// "dl-pause" i (pause, resume or retry a row of downloading), "dl-cancel" i, "dl-open" i (a row of downloaded);
+// Settings: "set-engine" i, "set-text-size" i (neoweb-core TEXT_SIZES), "set-desktop" 0/1, "set-js" 0/1,
+// "set-cookies" i (0 allow all, 1 block third-party), "set-clear", "set-unsafe" 0/1, "set-about".
 export global BrowserState {
     // 0 Start, 1–3 FakePage boards in host previews, 4 engine frame, 5 crashed
     in property <int> page;
@@ -94,6 +102,27 @@ export global BrowserState {
     in property <bool> finding;
     in-out property <string> find-text;
     in property <string> find-count;
+    // UI4: the library view shown (0 none, 1 Bookmarks, 2 History, 3 Downloads, 4 Settings); open it with
+    // BrowserApp.show-library(n), which makes it a kit layer at once
+    in-out property <int> library;
+    // br2-bookmarks: the open folder's name ("" = the top level), its folders and bookmarks
+    in property <string> bookmark-folder;
+    in property <[BookmarkRow]> bookmark-folders;
+    in property <[BookmarkRow]> bookmarks;
+    // br2-history: day headers and visits, newest first (neoweb-core History::rows)
+    in property <[HistoryRow]> history-rows;
+    // br2-downloads: the ones going (downloading, paused, failed), then the finished ones
+    in property <[DownloadRow]> downloading;
+    in property <[DownloadRow]> downloaded;
+    // the header's search field (Bookmarks, History)
+    in-out property <string> library-query;
+    // br2-settings: engine (SearchEngine index), text size (percent), cookies (0 allow all, 1 block third-party)
+    in property <int> settings-engine;
+    in property <int> settings-text-size: 100;
+    in property <int> settings-cookies: 1;
+    in-out property <bool> settings-desktop;
+    in-out property <bool> settings-js: true;
+    in-out property <bool> settings-unsafe;
     callback act(string, int);
 }
 
@@ -732,6 +761,34 @@ export component BrowserApp inherits Window {
         dismissed => {
             BrowserState.act("tabs-back", 0);
         }
+    }
+
+    // UI4: Bookmarks, History, Downloads, Settings over the chrome and Opened pages
+    library := LibraryView {
+        y: 0;
+        height: root.height;
+        screen <=> BrowserState.library;
+        folder: BrowserState.bookmark-folder;
+        folders: BrowserState.bookmark-folders;
+        bookmarks: BrowserState.bookmarks;
+        history: BrowserState.history-rows;
+        downloading: BrowserState.downloading;
+        downloaded: BrowserState.downloaded;
+        query <=> BrowserState.library-query;
+        engine: BrowserState.settings-engine;
+        text-size: BrowserState.settings-text-size;
+        cookies: BrowserState.settings-cookies;
+        desktop <=> BrowserState.settings-desktop;
+        javascript <=> BrowserState.settings-js;
+        unsafe-certs <=> BrowserState.settings-unsafe;
+        act(a, v) => {
+            BrowserState.act(a, v);
+        }
+    }
+
+    // Open library view `n` (0 closes it).
+    public function show-library(n: int) {
+        library.show(n);
     }
 
     // shortcut: the software renderer bakes in the glyphs of string literals (and Latin-1) only, so page titles in the
