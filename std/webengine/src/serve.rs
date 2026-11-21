@@ -745,7 +745,8 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
         };
         for cmd in cmds {
             let name = format!("{cmd:?}");
-            check(&format_args!("before {}", &name[..name.len().min(80)]));
+            // never slice inside a character (a command can carry any text)
+            check(&format_args!("before {}", &name[..name.floor_char_boundary(80)]));
             let shown = delegate.tabs.borrow().shown;
             match cmd {
                 // 1.1's single page: tab 0 (a 1.2 NEOWEB opens tabs)

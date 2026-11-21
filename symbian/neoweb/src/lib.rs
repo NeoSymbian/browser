@@ -96,6 +96,10 @@ struct Model {
     control: Control,
     query: Option<u32>,
     picking: Option<u32>,
+    /// the site a Save password offer names
+    offer_site: String,
+    /// uploads picked (each in its own folder: two files of one name stay apart)
+    picks: u32,
     /// sites the user said Never to (Save password)
     never_save: Vec<String>,
     /// the page size last sent to the engine
@@ -588,7 +592,7 @@ impl Model {
                 }
             }
             "login" if i == 0 => {
-                let site = Header::of(&self.live.url).domain;
+                let site = core::mem::take(&mut self.offer_site);
                 if !self.never_save.contains(&site) {
                     self.never_save.push(site);
                 }
@@ -716,8 +720,10 @@ impl Model {
                 }
             }
             Event::Login { user } => {
-                // B11: no secure store yet, so the sheet only says it; Never is remembered for this run (WB5d keeps it)
-                if !self.never_save.contains(&site) {
+                // B11: no secure store yet, so the sheet only says it; Never is remembered for this run. Not over
+                // another sheet, whose request would lose its answer (review #5); Never takes the site shown (#12).
+                if !self.never_save.contains(&site) && !ui.get_sheet_open() {
+                    self.offer_site = site.clone();
                     s.set_sheet_site(site.as_str().into());
                     s.set_sheet_text(user.as_str().into());
                     ui.invoke_show_sheet(4);
@@ -739,7 +745,11 @@ impl Model {
         let Control::Upload { id, accept } = core::mem::take(&mut self.control) else {
             return None;
         };
-        let filter = controls::picker_filter(&accept, i == 0);
+        let mut filter = controls::picker_filter(&accept, i == 0);
+        // the shell's OPEN takes 256 bytes of argument: a longer filter would cancel the picker (review #11)
+        if filter.len() > ipc::ARG_MAX {
+            filter.clear();
+        }
         let files = neoui_proto::open::files::KEY;
         match app.open(files, neoui_proto::open::files::PICK, &filter) {
             Ok(()) => {
@@ -759,7 +769,9 @@ impl Model {
     /// Back from Files: copy the picked file where the engine can read it and answer the file pick.
     fn picked(&mut self, app: &App) -> Option<Command> {
         let id = self.picking.take()?;
-        let paths = match app.result_file().map(|f| copy_for_engine(&f)) {
+        self.picks += 1;
+        let pick = self.picks;
+        let paths = match app.result_file().map(|f| copy_for_engine(&f, pick)) {
             Some(Ok(path)) => alloc::vec![path],
             Some(Err(e)) => {
                 dprintln!("neoweb: upload copy {}", e);
@@ -822,9 +834,14 @@ impl Model {
             return None;
         };
         let y = y - ui.get_page_top_px();
+        // an open sheet, Opened pages or a library view takes the touches (Codex review #1)
+        let covered = ui.get_sheet_open()
+            || ui.global::<BrowserState>().get_tabs_open()
+            || ui.global::<BrowserState>().get_library() != 0;
         let in_page = self.showing_web
             && !self.live.crashed
             && !self.editing
+            && !covered
             && (0..ui.get_page_width_px()).contains(&x)
             && (0..ui.get_page_height_px()).contains(&y);
         // a finger taken from the page: dragging a selection end, or after a long-press
@@ -991,30 +1008,43 @@ fn select_rows(items: &[SelectItem]) -> ModelRc<SelectRow> {
 }
 
 /// Copy a file Files handed over into the engine's upload folder; its path there, as the engine names it.
-fn copy_for_engine(f: &e32::fs::SharedFile) -> Result<String, i32> {
+fn copy_for_engine(f: &e32::fs::SharedFile, pick: u32) -> Result<String, i32> {
     use e32::fs::{Fs, mode};
     let src = f.file();
-    let path = controls::upload_path(&src.full_name()?);
+    // a folder per pick keeps two files of one name apart (Servo reads the path again when the form is sent)
+    let path = controls::upload_path(&src.full_name()?).replacen(
+        controls::UPLOAD_DIR,
+        &alloc::format!("{}{}/", controls::UPLOAD_DIR, pick),
+        1,
+    );
     let fs = Fs::connect()?;
     let sym: String = path.replace('/', "\\");
     let dir = &sym[..=sym.rfind('\\').unwrap_or(0)];
-    let _ = fs.mkdir(dir); // it may exist
-    let dst = e32::fs::File::replace(
-        &fs,
-        &sym,
-        mode::WRITE | mode::SHARE_EXCLUSIVE | mode::BIG_FILE,
-    )?;
-    let mut buf = alloc::vec![0u8; 64 * 1024];
-    let mut pos = 0u64;
-    loop {
-        let n = src.read_at64(pos, &mut buf)?;
-        if n == 0 {
-            break;
+    // the folders may exist
+    let _ = fs.mkdir(&controls::UPLOAD_DIR.replace('/', "\\"));
+    let _ = fs.mkdir(dir);
+    let copy = || -> Result<(), i32> {
+        let dst = e32::fs::File::replace(
+            &fs,
+            &sym,
+            mode::WRITE | mode::SHARE_EXCLUSIVE | mode::BIG_FILE,
+        )?;
+        let mut buf = alloc::vec![0u8; 64 * 1024];
+        let mut pos = 0u64;
+        loop {
+            let n = src.read_at64(pos, &mut buf)?;
+            if n == 0 {
+                break;
+            }
+            dst.write(&buf[..n])?;
+            pos += n as u64;
         }
-        dst.write(&buf[..n])?;
-        pos += n as u64;
-    }
-    dst.flush()?;
+        dst.flush()
+    };
+    // shortcut: the copy runs on the UI loop (a big file stalls the screen); a thread if uploads get large
+    copy().inspect_err(|_| {
+        let _ = fs.delete(&sym); // no partial file left behind (review #8)
+    })?;
     Ok(path)
 }
 
@@ -1376,6 +1406,8 @@ fn sync(app: &App, ui: &BrowserApp, m: &mut Model, shown: &mut Page) -> Result<(
         };
         let h = app.keyboard(mode).unwrap_or(0);
         kf.set_text_h(h as f32);
+        // the shell answers with the height now and sends Keyboard { h } only on a later change (review #6)
+        ui.global::<BrowserState>().set_keyboard_px(h as i32);
     }
     Ok(())
 }
