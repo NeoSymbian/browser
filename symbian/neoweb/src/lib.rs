@@ -838,10 +838,14 @@ impl Model {
             return None;
         };
         let y = y - ui.get_page_top_px();
-        // an open sheet, Opened pages or a library view takes the touches (Codex review #1)
-        let covered = ui.get_sheet_open()
-            || ui.global::<BrowserState>().get_tabs_open()
-            || ui.global::<BrowserState>().get_library() != 0;
+        // an open sheet, Opened pages or a library view takes the touches (Codex review #1), and so does the
+        // selection bar's band (its y is in surface px; `y` here is the page's)
+        let st = ui.global::<BrowserState>();
+        let bar_y = st.get_selection_y() as i32;
+        let bar = (40.0 * ui.global::<Theme>().get_dp()) as i32;
+        let on_bar =
+            st.get_selection_shown() && (bar_y..bar_y + bar).contains(&(y + ui.get_page_top_px()));
+        let covered = ui.get_sheet_open() || st.get_tabs_open() || st.get_library() != 0 || on_bar;
         let in_page = self.showing_web
             && !self.live.crashed
             && !self.editing
