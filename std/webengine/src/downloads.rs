@@ -171,8 +171,10 @@ fn run(job: &Job, post: &Post) -> Result<DownloadState, String> {
     std::fs::create_dir_all(DIR).map_err(|e| format!("{DIR}: {e}"))?;
     let part_path = part(&job.name);
     let have = std::fs::metadata(&part_path).map_or(0, |m| m.len());
+    // P.I.P.S. sockets take no TCP_NODELAY or receive/send timeouts (ENOPROTOOPT, os error 42): ureq sets neither
     let agent = ureq::Agent::config_builder()
-        .timeout_connect(Some(Duration::from_secs(20)))
+        .no_delay(false)
+        .max_idle_connections(0)
         .build()
         .new_agent();
     let mut req = agent.get(&job.url);
