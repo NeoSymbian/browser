@@ -25,15 +25,15 @@ parking_lot_core = { git = "https://github.com/NeoSymbian/parking_lot", branch =
 libloading = { git = "https://github.com/NeoSymbian/libloading", branch = "neosymbian" }
 inventory = { git = "https://github.com/NeoSymbian/inventory", branch = "neosymbian" }
 # webrender: every crate from the one fork (Servo's rev d399b904 + the FreeType cfg), or two copies would link
-webrender = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
-webrender_api = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
-wr_glyph_rasterizer = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
-peek-poke = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
-peek-poke-derive = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
-wr_malloc_size_of = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
-swgl = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
-glsl-to-cxx = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
-webrender_build = { git = "https://github.com/NeoSymbian/webrender", branch = "wb5" }
+webrender = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+webrender_api = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+wr_glyph_rasterizer = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+peek-poke = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+peek-poke-derive = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+wr_malloc_size_of = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+swgl = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+glsl-to-cxx = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
+webrender_build = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
 # Servo asks for mozjs =0.26.13 from crates.io: the NeoSymbian/mozjs fork (WB3), as jsshell pins it
 mozjs = { git = "https://github.com/NeoSymbian/mozjs", rev = "812fbdfe98ee207edf5cc32804ecbba19f9ec1bc" }
 mozjs_sys = { git = "https://github.com/NeoSymbian/mozjs", rev = "812fbdfe98ee207edf5cc32804ecbba19f9ec1bc" }
