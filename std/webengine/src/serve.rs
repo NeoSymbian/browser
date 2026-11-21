@@ -848,6 +848,7 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
             }
         }
         servo.spin_event_loop();
+        run_deferred();
         if check_heap && last_check.elapsed() >= Duration::from_millis(500) {
             last_check = std::time::Instant::now();
             unsafe { crate::cxxrt_heap_check() };
@@ -961,6 +962,23 @@ pub struct SelEnds {
 
 thread_local!(static SEL: std::cell::Cell<Option<SelEnds>> = const { std::cell::Cell::new(None) });
 
+type Deferred = Box<dyn FnOnce()>;
+
+// Work a script result asks for (more input, more script): Servo runs those callbacks while its evaluator is
+// borrowed, so calling back into the WebView from one panics ("RefCell already borrowed"). The main loop runs them
+// after spin_event_loop.
+thread_local!(static DEFER: RefCell<Vec<Deferred>> = RefCell::new(Vec::new()));
+
+fn defer(f: impl FnOnce() + 'static) {
+    DEFER.with_borrow_mut(|d| d.push(Box::new(f)));
+}
+
+fn run_deferred() {
+    for f in DEFER.with_borrow_mut(std::mem::take) {
+        f();
+    }
+}
+
 fn sel_event(e: Option<SelEnds>) -> Event {
     Event::Selection {
         ends: e.map_or(Vec::new(), |e| {
@@ -997,42 +1015,10 @@ fn press(view: &WebView, shared: &SharedRef, x: i32, y: i32) {
             _ => PressKind::Nothing,
         };
         if kind == PressKind::Nothing {
-            for _ in 0..2 {
-                mouse(&v2, Some(MouseButtonAction::Down), x, y);
-                mouse(&v2, Some(MouseButtonAction::Up), x, y);
-            }
-            let shared = shared.clone();
-            v2.evaluate_javascript(
-                "[getSelection().toString().length, devicePixelRatio]",
-                move |r| {
-                    let v = items(&r);
-                    if num(v.first()) == 0 {
-                        return post(&shared, sel_event(None));
-                    }
-                    // shortcut: the word's real ends need text geometry Servo doesn't give script; the handles
-                    // sit a word's width around the press
-                    let dpr = num(v.get(1)).max(1);
-                    let half = 30 * dpr;
-                    let e = SelEnds {
-                        a: (x - half, y),
-                        b: (x + half, y),
-                        line: 20 * dpr,
-                    };
-                    SEL.set(Some(e));
-                    post(&shared, sel_event(Some(e)));
-                    post(
-                        &shared,
-                        Event::Pressed {
-                            kind: PressKind::Text,
-                            title: String::new(),
-                            url: String::new(),
-                            y: 0,
-                        },
-                    );
-                },
-            );
+            defer(move || select_word(&v2, shared, x, y));
             return;
         }
+
         post(
             &shared,
             Event::Pressed {
@@ -1043,6 +1029,43 @@ fn press(view: &WebView, shared: &SharedRef, x: i32, y: i32) {
             },
         );
     });
+}
+
+/// Select the word at (x, y) with a double click (Servo's word segmentation), then report the selection.
+fn select_word(view: &WebView, shared: SharedRef, x: i32, y: i32) {
+    for _ in 0..2 {
+        mouse(view, Some(MouseButtonAction::Down), x, y);
+        mouse(view, Some(MouseButtonAction::Up), x, y);
+    }
+    view.evaluate_javascript(
+        "[getSelection().toString().length, devicePixelRatio]",
+        move |r| {
+            let v = items(&r);
+            if num(v.first()) == 0 {
+                return post(&shared, sel_event(None));
+            }
+            // shortcut: the word's real ends need text geometry Servo doesn't give script; the handles sit a
+            // word's width around the press
+            let dpr = num(v.get(1)).max(1);
+            let half = 30 * dpr;
+            let e = SelEnds {
+                a: (x - half, y),
+                b: (x + half, y),
+                line: 20 * dpr,
+            };
+            SEL.set(Some(e));
+            post(&shared, sel_event(Some(e)));
+            post(
+                &shared,
+                Event::Pressed {
+                    kind: PressKind::Text,
+                    title: String::new(),
+                    url: String::new(),
+                    y: 0,
+                },
+            );
+        },
+    );
 }
 
 fn select(view: &WebView, shared: &SharedRef, op: SelectOp, x: i32, y: i32) {
