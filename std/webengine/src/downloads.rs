@@ -85,6 +85,7 @@ fn event(job: &Job, received: u64, total: u64, state: DownloadState) -> Event {
     Event::Download {
         id: job.id,
         name: job.name.clone(),
+        url: job.url.clone(),
         path: format!("{DIR}/{}", job.name),
         received,
         total,

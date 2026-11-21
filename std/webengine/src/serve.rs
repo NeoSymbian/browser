@@ -29,7 +29,7 @@ use neoweb_proto::{
 };
 use servo::{
     AllowOrDenyRequest, ClipboardDelegate, Code, ConsoleLogLevel, CreateNewWebViewRequest, JSValue,
-    PrefValue, DevicePoint, EmbedderControl, EmbedderControlId,
+    PrefValue, StorageType, DevicePoint, EmbedderControl, EmbedderControlId,
     EventLoopWaker, FilePicker, ImeEvent, InputEvent, InputMethodType, Key, KeyState,
     KeyboardEvent, LoadStatus, Location, Modifiers, NamedKey, RenderingContext, SelectElement,
     SelectElementOption, SelectElementOptionOrOptgroup, SimpleDialog, StringRequest, TouchEvent, TouchEventType, TouchId,
@@ -684,6 +684,8 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
     user_content.add_script(Rc::new(UserScript::new(LOGIN_SCRIPT.into(), None)));
     user_content.add_script(Rc::new(UserScript::new(HELPER_SCRIPT.into(), None)));
     let mobile_agent = servo::pref!(user_agent);
+    // Settings' text size, for every page (new ones too)
+    let zoom = std::cell::Cell::new(1.0f32);
     // After a resize while a field has the keyboard, the field is scrolled into view once the page has the new size.
     let mut reveal_at: Option<std::time::Instant> = None;
     let mut buffers = Buffers::default();
@@ -718,6 +720,7 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                     .clipboard_delegate(delegate.clone())
                     .user_content_manager(user_content.clone())
                     .build();
+                view.set_page_zoom(zoom.get());
                 delegate.tabs.borrow_mut().add(tab, view);
             }
             (false, None) => return,
@@ -761,6 +764,19 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                 Command::Close { tab } => delegate.tabs.borrow_mut().close(tab),
                 Command::Download { url } => {
                     delegate.downloads.borrow_mut().start(&url, delegate.poster())
+                }
+                Command::Zoom(p) => {
+                    zoom.set(p.clamp(50, 300) as f32 / 100.0);
+                    for t in &delegate.tabs.borrow().list {
+                        t.view.set_page_zoom(zoom.get());
+                    }
+                }
+                Command::ClearData => {
+                    servo.site_data_manager().clear_cookies(None);
+                    servo
+                        .site_data_manager()
+                        .clear_site_data(&[], StorageType::all());
+                    servo.network_manager().clear_cache();
                 }
                 Command::DownloadOp { id, op } => {
                     delegate.downloads.borrow_mut().op(id, op, delegate.poster())

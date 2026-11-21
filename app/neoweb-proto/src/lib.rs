@@ -41,7 +41,7 @@ use alloc::vec::Vec;
 /// The engine's server name.
 pub const SERVER_NAME: &str = "NeoWebEngine";
 /// The protocol version (major, minor, build), checked at connect.
-pub const VERSION: (u8, u8, u16) = (1, 3, 0);
+pub const VERSION: (u8, u8, u16) = (1, 4, 0);
 /// Tab ids from here up are the engine's (a page's new window); below, NEOWEB's.
 pub const ENGINE_TABS: u32 = 0x8000_0000;
 /// Room for one encoded event (URLs and titles are cut to fit).
@@ -177,6 +177,10 @@ pub enum Command {
         id: u32,
         op: DownloadOp,
     },
+    /// The pages' zoom in percent (Settings' text size, 1.4).
+    Zoom(u32),
+    /// Clear browsing data: cookies, site storage and the cache (1.4).
+    ClearData,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -336,6 +340,8 @@ pub enum Event {
     Download {
         id: u32,
         name: String,
+        /// where it comes from (for a retry)
+        url: String,
         path: String,
         received: u64,
         total: u64,
@@ -520,6 +526,8 @@ impl Command {
             Command::DesktopSite(on) => w.u8(22).u8(*on as u8),
             Command::Download { url } => w.u8(23).str(url, COMMAND_STR_MAX),
             Command::DownloadOp { id, op } => w.u8(24).u32(*id).u8(*op as u8),
+            Command::Zoom(p) => w.u8(25).u32(*p),
+            Command::ClearData => w.u8(26),
         }
         .0
     }
@@ -608,6 +616,8 @@ impl Command {
             },
             22 => Command::DesktopSite(r.bool()?),
             23 => Command::Download { url: r.str()? },
+            25 => Command::Zoom(r.u32()?),
+            26 => Command::ClearData,
             24 => Command::DownloadOp {
                 id: r.u32()?,
                 op: match r.u8()? {
@@ -727,6 +737,7 @@ impl Event {
             Event::Download {
                 id,
                 name,
+                url,
                 path,
                 received,
                 total,
@@ -735,6 +746,7 @@ impl Event {
                 .u8(18)
                 .u32(*id)
                 .str(name, 512)
+                .str(url, 2048)
                 .str(path, 1024)
                 .u64(*received)
                 .u64(*total)
@@ -838,6 +850,7 @@ impl Event {
             18 => Event::Download {
                 id: r.u32()?,
                 name: r.str()?,
+                url: r.str()?,
                 path: r.str()?,
                 received: r.u64()?,
                 total: r.u64()?,
@@ -936,6 +949,8 @@ mod tests {
                 id: 3,
                 op: DownloadOp::Resume,
             },
+            Command::Zoom(115),
+            Command::ClearData,
         ];
         for c in all {
             assert_eq!(Command::decode(&c.encode()), Ok(c));
@@ -1023,6 +1038,7 @@ mod tests {
             Event::Download {
                 id: 1,
                 name: "symbian3-dev-guide.pdf".to_string(),
+                url: "https://example.org/symbian3-dev-guide.pdf".to_string(),
                 path: "C:/Data/Downloads/symbian3-dev-guide.pdf".to_string(),
                 received: 3_355_443,
                 total: 8_808_038,

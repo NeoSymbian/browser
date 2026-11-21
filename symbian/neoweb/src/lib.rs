@@ -5,6 +5,7 @@
 extern crate alloc;
 
 mod engine;
+mod library;
 
 use alloc::collections::VecDeque;
 use alloc::rc::Rc;
@@ -58,6 +59,9 @@ enum Control {
         id: u32,
         accept: String,
     },
+    /// a library prompt (new or renamed folder, renamed bookmark), or a bookmark's Move choice (UI4)
+    Rename(library::Rename),
+    Move(usize),
 }
 
 /// A finger held still on the page: a long-press after [`PRESS_MS`] (WB5c).
@@ -110,6 +114,10 @@ struct Model {
     /// the next copied text is a search (the selection bar's Search), not for the clipboard
     search_copy: bool,
     desktop: bool,
+    /// bookmarks, history, downloads, settings (UI4)
+    lib: library::Library,
+    /// the shell's QUERY is "Clear browsing data?"
+    clear_query: bool,
 }
 
 impl Model {
@@ -244,9 +252,76 @@ impl Model {
                         self.out.push(Command::Reload);
                     }
                 }
-                // Bookmarks, History, Downloads, Settings: WB5d
+                5..=8 => {
+                    ui.invoke_show_library(i - 4);
+                    self.lib.show(ui);
+                }
                 _ => {}
             },
+            "bookmark" if self.showing_web => {
+                let on = self
+                    .lib
+                    .toggle_bookmark(&self.live.title.clone(), &self.live.url.clone());
+                self.note = Some(if on {
+                    "Added to bookmarks"
+                } else {
+                    "Bookmark removed"
+                });
+            }
+            a if a.starts_with("bm-")
+                || a.starts_with("hist-")
+                || a.starts_with("dl-")
+                || a.starts_with("set-")
+                || a.starts_with("library-") =>
+            {
+                let mut out = Vec::new();
+                let then = self.lib.act(app, ui, a, i, &mut out);
+                self.out.extend(out);
+                match then {
+                    library::Then::Nothing => {}
+                    library::Then::Go(url) => {
+                        ui.invoke_show_library(0);
+                        if let Some(c) = self.go(ui, url) {
+                            self.out.push(c);
+                        }
+                    }
+                    library::Then::AskClear => {
+                        let q = Query {
+                            text: "Clear browsing data?\nHistory, cookies and cached files on this phone are deleted."
+                                .into(),
+                            buttons: alloc::vec!["Clear".into(), "Cancel".into()],
+                            destructive: true,
+                        };
+                        self.clear_query = app.query(&q).is_ok();
+                    }
+                    library::Then::Prompt(what, question, value) => {
+                        s.set_sheet_site("Browser".into());
+                        s.set_sheet_text(question.into());
+                        s.set_sheet_value(value.as_str().into());
+                        self.control = Control::Rename(what);
+                        ui.invoke_show_sheet(1);
+                    }
+                    library::Then::Move(b) => {
+                        let items: Vec<SelectItem> = self
+                            .lib
+                            .folder_names()
+                            .into_iter()
+                            .enumerate()
+                            .map(|(n, label)| SelectItem {
+                                id: n as u32,
+                                label,
+                                disabled: false,
+                                selected: false,
+                            })
+                            .collect();
+                        s.set_select_rows(select_rows(&items));
+                        s.set_select_multiple(false);
+                        self.control = Control::Move(b);
+                        ui.invoke_show_sheet(2);
+                    }
+                }
+                self.lib.show(ui);
+            }
             "link" => {
                 let url: String = s.get_link_url().into();
                 match i {
@@ -402,13 +477,20 @@ impl Model {
             "go" => {
                 let text = s.get_edit_text();
                 if !text.trim().is_empty() {
-                    return self.go(ui, input::parse(&text));
+                    let url = input::parse(&text);
+                    // a search goes to the engine Settings chose
+                    let url = if url == input::search(&text) {
+                        self.lib.search(&text)
+                    } else {
+                        url
+                    };
+                    return self.go(ui, url);
                 }
             }
             "suggestion" => {
                 let url = match self.suggestions.get(i as usize) {
                     Some(Suggestion::History(_, u) | Suggestion::Bookmark(_, u)) => u.clone(),
-                    Some(Suggestion::Search(t)) => input::search(t),
+                    Some(Suggestion::Search(t)) => self.lib.search(t),
                     None => return None,
                 };
                 return self.go(ui, url);
@@ -450,13 +532,24 @@ impl Model {
                 self.live.loading.stop();
                 return Some(Command::Stop);
             }
-            "prompt" => {
-                if let Control::Prompt(id) = core::mem::take(&mut self.control) {
+            "prompt" => match core::mem::take(&mut self.control) {
+                Control::Prompt(id) => {
                     return Some(Command::Answer {
                         id,
                         ok: i == 1,
                         text: s.get_sheet_value().into(),
                     });
+                }
+                Control::Rename(r) if i == 1 => {
+                    self.lib.renamed(r, &s.get_sheet_value());
+                    self.lib.show(ui);
+                }
+                _ => {}
+            },
+            "select" if matches!(self.control, Control::Move(_)) => {
+                if let Control::Move(b) = core::mem::take(&mut self.control) {
+                    self.lib.moved(b, i.max(0) as usize);
+                    self.lib.show(ui);
                 }
             }
             "select" => {
@@ -593,6 +686,12 @@ impl Model {
                 s.set_find_count(alloc::format!("{index}/{count}").as_str().into());
             }
             Event::TabInfo { tab, url, title } => self.tabs.info(tab, &url, &title),
+            e @ Event::Download { .. } => {
+                self.lib.download(app, e);
+                if ui.global::<BrowserState>().get_library() == 3 {
+                    self.lib.show(ui);
+                }
+            }
             Event::Created { tab, opener } => {
                 if let (Some(cur), Some(img)) = (self.tabs.current, self.frame.take()) {
                     self.thumbs.retain(|(t, _)| *t != cur);
@@ -673,7 +772,8 @@ impl Model {
     }
 
     fn suggest(&mut self, text: &str) {
-        self.suggestions = input::suggest(text, &self.visited, &[]);
+        self.suggestions =
+            input::suggest(text, &self.lib.history.pairs(), &self.lib.bookmarks.list);
     }
 
     fn crash(&mut self, ui: &BrowserApp, reason: String) {
@@ -689,6 +789,9 @@ impl Model {
         self.live.apply(event);
         if visit && let Some(tab) = self.tabs.current {
             self.tabs.info(tab, &self.live.url, &self.live.title);
+        }
+        if visit {
+            self.lib.visited(&self.live.title, &self.live.url);
         }
         if visit && !self.live.url.is_empty() {
             match self.visited.last_mut() {
@@ -807,6 +910,7 @@ impl Model {
         });
         s.set_count(count_label(self.tabs.list.len()).as_str().into());
         s.set_finding(self.finding);
+        s.set_bookmarked(self.showing_web && self.lib.bookmarks.is_bookmarked(&self.live.url));
         s.set_desktop_site(self.desktop);
         if self.selection.is_empty() {
             s.set_selection_shown(false);
@@ -978,6 +1082,8 @@ fn run() -> Result<(), i32> {
         .collect();
     ui.global::<BrowserState>().set_shortcuts(model(tiles));
     let mut m = Model::default();
+    m.lib = library::Library::load();
+    m.desktop = m.lib.settings.desktop_site;
     m.tabs.open(START);
     m.show(&ui);
     let actions = Rc::new(RefCell::new(VecDeque::new()));
@@ -1043,6 +1149,17 @@ fn run() -> Result<(), i32> {
                                 result = connection.send(Command::ImeDismissed);
                             }
                         }
+                        AppEvent::Answer { i } if core::mem::take(&mut m.clear_query) => {
+                            if i == 0 {
+                                m.lib.cleared();
+                                m.out.push(Command::ClearData);
+                                m.note = Some("Browsing data cleared");
+                            }
+                        }
+                        AppEvent::Notified { id, action } => {
+                            m.lib.notified(&app, &ui, id, action.into())
+                        }
+                        AppEvent::Open { page: 3 } => ui.invoke_show_library(3),
                         AppEvent::Answer { i } => {
                             if let Some(id) = m.query.take() {
                                 result = connection.send(Command::Answer {
@@ -1066,6 +1183,9 @@ fn run() -> Result<(), i32> {
                             let size = resize(&app, &ui);
                             connection.send(size.clone())?;
                             m.sent = Some(size);
+                            for c in m.lib.engine_settings() {
+                                connection.send(c)?;
+                            }
                             // a new engine has no pages: the current tab's is made again, the others reload when shown
                             m.tabs.forget_pages();
                             if let Some(tab) = m.tabs.current
@@ -1113,7 +1233,8 @@ fn run() -> Result<(), i32> {
                             | Event::Selection { .. }
                             | Event::Found { .. }
                             | Event::TabInfo { .. }
-                            | Event::Created { .. }),
+                            | Event::Created { .. }
+                            | Event::Download { .. }),
                         ) => match m.control(&app, &ui, event) {
                             Some(answer) => connection.send(answer),
                             None => Ok(()),
@@ -1161,6 +1282,7 @@ fn run() -> Result<(), i32> {
             if let Some(note) = m.note.take() {
                 let _ = app.note(note, "");
             }
+            m.lib.save();
             m.show(&ui);
             sync(&app, &ui, &mut m, &mut shown)?;
             // the page area changed (the keyboard came or went): tell the engine once
