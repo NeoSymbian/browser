@@ -638,6 +638,14 @@ impl Model {
                 self.control = Control::Prompt(id);
                 ui.invoke_show_sheet(1);
             }
+            // one shell QUERY at a time: "Clear browsing data?" is open, so the page's dialog is cancelled (review #2)
+            Event::Dialog { id, .. } if self.clear_query => {
+                return Some(Command::Answer {
+                    id,
+                    ok: false,
+                    text: String::new(),
+                });
+            }
             Event::Dialog { id, kind, text, .. } => {
                 let (text, buttons) = controls::query(&site, kind, &text);
                 let q = Query {
@@ -1193,6 +1201,7 @@ fn run() -> Result<(), i32> {
                         AppEvent::Answer { i } if core::mem::take(&mut m.clear_query) => {
                             if i == 0 {
                                 m.lib.cleared();
+                                m.visited.clear(); // the start page's recents (review #14)
                                 m.out.push(Command::ClearData);
                                 m.note = Some("Browsing data cleared");
                             }
@@ -1301,7 +1310,10 @@ fn run() -> Result<(), i32> {
                 connection = Connection::Offline;
                 m.crash(&ui, alloc::format!("engine IPC {}", error));
             }
-            while let Some((action, i)) = actions.borrow_mut().pop_front() {
+            // the borrow ends before the action runs: an action can make Slint queue another (Codex WB5d review #1)
+            loop {
+                let next = actions.borrow_mut().pop_front();
+                let Some((action, i)) = next else { break };
                 dprintln!("neoweb: act {} {}", action, i);
                 let command = if action == "upload" {
                     m.pick(&app, i)

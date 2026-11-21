@@ -43,12 +43,17 @@ fn load(name: &str) -> String {
 }
 
 fn save(name: &str, text: &str) {
+    // a temporary file replaces the old one only once written: a full disk keeps the old library (review #12)
     let write = || -> Result<(), i32> {
         let fs = Fs::connect()?;
         let _ = fs.mkdir(DIR);
-        let f = File::replace(&fs, &format!("{DIR}{name}"), mode::SHARE_EXCLUSIVE)?;
-        f.write(text.as_bytes())?;
-        f.flush()
+        let tmp = format!("{DIR}{name}.tmp");
+        {
+            let f = File::replace(&fs, &tmp, mode::SHARE_EXCLUSIVE)?;
+            f.write(text.as_bytes())?;
+            f.flush()?;
+        }
+        fs.replace_file(&tmp, &format!("{DIR}{name}"))
     };
     if let Err(e) = write() {
         e32::dprintln!("neoweb: saving {} failed {}", name, e);
@@ -319,7 +324,8 @@ impl Library {
             }
             "library-back" => self.folder = None,
             "library-menu" => match (s.get_library(), i) {
-                (3, 1) => {
+                // Downloads' ⋮: 0 Clear the list, 1 Settings (review #13)
+                (3, 0) => {
                     let done: Vec<u32> = self.downloads.sections().1.iter().map(|d| d.id).collect();
                     for id in done {
                         self.downloads.remove(id);

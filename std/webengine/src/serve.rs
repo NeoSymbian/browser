@@ -414,6 +414,8 @@ impl WebViewDelegate for Delegate {
             self.post(Event::Login { user: user.into() });
         } else if let Some(url) = message.strip_prefix(DOWNLOAD_MARK)
             && url.starts_with("http")
+            // only right after the user touched the page: a page's own console line is no download (review #7)
+            && LAST_TAP.get().is_some_and(|t| t.elapsed() < Duration::from_secs(2))
         {
             self.downloads.borrow_mut().start(url, self.poster());
         }
@@ -594,6 +596,9 @@ impl Buffers {
 fn input(webview: &WebView, d: &Delegate, cmd: Command) {
     match cmd {
         Command::Touch { kind, id, x, y } => {
+            if kind == TouchKind::Up {
+                LAST_TAP.set(Some(std::time::Instant::now()));
+            }
             let kind = match kind {
                 TouchKind::Down => TouchEventType::Down,
                 TouchKind::Move => TouchEventType::Move,
@@ -980,6 +985,9 @@ pub struct SelEnds {
 
 thread_local!(static SEL: std::cell::Cell<Option<SelEnds>> = const { std::cell::Cell::new(None) });
 
+// When the user last lifted a finger from the page (a download a page asks for must follow one).
+thread_local!(static LAST_TAP: std::cell::Cell<Option<std::time::Instant>> = const { std::cell::Cell::new(None) });
+
 type Deferred = Box<dyn FnOnce()>;
 
 // Work a script result asks for (more input, more script): Servo runs those callbacks while its evaluator is
@@ -1039,12 +1047,13 @@ fn press(view: &WebView, shared: &SharedRef, x: i32, y: i32) {
     let v2 = view.clone();
     view.evaluate_javascript(&format!("__neoweb.press({x},{y})"), move |r| {
         let v = items(&r);
-        let kind = match num(v.first()) {
+        let code = num(v.first());
+        let kind = match code {
             1 => PressKind::Link,
             2 => PressKind::Image,
             _ => PressKind::Nothing,
         };
-        if kind == PressKind::Nothing {
+        if code == 0 {
             defer(move || select_word(&v2, shared, x, y));
             return;
         }

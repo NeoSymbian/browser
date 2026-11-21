@@ -84,6 +84,8 @@
       if (a) return [1, (a.textContent || '').trim().slice(0, 200), a.href, a.getBoundingClientRect().bottom * dpr()];
       const img = el && el.closest('img[src]');
       if (img) return [2, img.alt || '', img.src, img.getBoundingClientRect().bottom * dpr()];
+      // a control: no word selection (its double click would activate it: a Reset or Submit button)
+      if (el && el.closest('button,input,select,textarea,label,summary,[onclick],[role=button]')) return [4];
       // text: the engine selects the word with a double click (Servo's own word segmentation)
       return [0];
     },

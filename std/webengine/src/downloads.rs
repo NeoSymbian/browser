@@ -37,11 +37,20 @@ struct Job {
 
 impl Downloads {
     pub fn start(&mut self, url: &str, post: Post) {
+        // at most 4 at once (review #7)
+        if self.running.values().filter(|j| !*j.idle.lock().unwrap()).count() >= 4 {
+            println!("neowebe: download {url}: 4 running already");
+            return;
+        }
         self.next += 1;
+        let name = unique_name(&file_name(url));
+        // the part is created now, so a second download of the same name picks another (review #8)
+        let _ = std::fs::create_dir_all(DIR);
+        let _ = std::fs::OpenOptions::new().create_new(true).write(true).open(part(&name));
         let job = Arc::new(Job {
             id: self.next,
             url: url.into(),
-            name: unique_name(&file_name(url)),
+            name,
             want: AtomicU8::new(RUN),
             idle: Mutex::new(false),
         });
@@ -182,7 +191,16 @@ fn run(job: &Job, post: &Post) -> Result<DownloadState, String> {
         req = req.header("Range", &format!("bytes={have}-"));
     }
     let resp = req.call().map_err(|e| e.to_string())?;
-    let resumed = resp.status() == 206;
+    // a 206 must continue exactly where the part ends; anything else starts the file again (review #9)
+    let resumed = resp.status() == 206
+        && resp
+            .headers()
+            .get("content-range")
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|r| r.starts_with(&format!("bytes {have}-")));
+    if have > 0 && !resumed && resp.status() == 206 {
+        return Err("the server sent another range".into());
+    }
     let len: u64 = resp
         .headers()
         .get("content-length")
