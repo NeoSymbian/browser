@@ -131,6 +131,8 @@ struct Model {
     clear_query: bool,
     /// the tab Wi-Fi opened for its login, and the network's name (br2-captive's banner)
     captive: Option<(u32, String)>,
+    /// sites opened anyway past a certificate error (B10): their header says Not secure for this run
+    unsafe_hosts: Vec<String>,
 }
 
 impl Model {
@@ -588,6 +590,10 @@ impl Model {
             }
             // B10: only with Settings' switch on; the engine's page does the override
             "cert-allow" if self.lib.settings.allow_unsafe_certs => {
+                let host = Header::of(&self.live.url).domain;
+                if !self.unsafe_hosts.contains(&host) {
+                    self.unsafe_hosts.push(host);
+                }
                 self.live.error = None;
                 return Some(Command::AllowCert);
             }
@@ -1026,6 +1032,7 @@ impl Model {
         s.set_security(match error.map(|e| e.kind) {
             Some(PageErrorKind::Cert) => Security::NotSecure,
             Some(PageErrorKind::Net) => Security::Local,
+            None if self.unsafe_hosts.contains(&header.domain) => Security::NotSecure,
             None => header.security,
         } as i32);
         if let Some(e) = error {
