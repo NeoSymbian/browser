@@ -941,6 +941,8 @@ impl Model {
         let covered = ui.get_sheet_open() || st.get_tabs_open() || st.get_library() != 0 || on_bar;
         let in_page = self.showing_web
             && !self.live.crashed
+            // the certificate and No connection pages are NEOWEB's own (UI5): their buttons take the touches
+            && self.live.error.is_none()
             && !self.editing
             && !covered
             && (0..ui.get_page_width_px()).contains(&x)

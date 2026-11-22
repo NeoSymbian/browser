@@ -230,10 +230,17 @@ fn page_error(view: &WebView, line: &str) -> Option<Event> {
         _ => return None,
     };
     let cert = parts.next()?;
-    let reason = parts.next().unwrap_or("").to_owned();
     let summary = neoweb_core::safety::base64(cert)
         .and_then(|der| neoweb_core::safety::cert_summary(&der))
         .unwrap_or_default();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let reason = neoweb_core::safety::cert_reason(
+        parts.next().unwrap_or(""),
+        &summary,
+        &neoweb_core::safety::date_of(now),
+    );
     println!("neowebe: page error {kind:?}: {reason}");
     Some(Event::PageError {
         kind,

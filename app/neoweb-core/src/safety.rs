@@ -118,6 +118,33 @@ pub fn base64(s: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// The date (`YYYY-MM-DD`, UTC) of a Unix time in seconds.
+pub fn date_of(unix_secs: i64) -> String {
+    // days to a civil date (Howard Hinnant's algorithm)
+    let z = unix_secs.div_euclid(86_400) + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    alloc::format!("{y:04}-{m:02}-{d:02}")
+}
+
+/// Servo often says only "client error (Connect)" for a bad certificate: the certificate's own dates against
+/// `today` (`YYYY-MM-DD`) name an expired or not-yet-valid one for [`cert_cause`].
+pub fn cert_reason(reason: &str, cert: &CertSummary, today: &str) -> String {
+    if !cert.valid_until.is_empty() && cert.valid_until.as_str() < today {
+        alloc::format!("Expired ({reason})")
+    } else if !cert.valid_from.is_empty() && cert.valid_from.as_str() > today {
+        alloc::format!("not valid yet ({reason})")
+    } else {
+        reason.into()
+    }
+}
+
 /// `YYYY-MM-DD` as "12 Apr 2015" (the boards' dates); anything else as it is.
 pub fn pretty_date(d: &str) -> String {
     const MONTHS: [&str; 12] = [
@@ -327,6 +354,15 @@ mod tests {
             "sent a certificate for another site (*.badssl.com)."
         );
         assert_eq!(pretty_date("2027-01-11"), "11 Jan 2027");
+        assert_eq!(date_of(0), "1970-01-01");
+        assert_eq!(date_of(1_795_286_149), "2026-11-21");
+        assert_eq!(date_of(951_782_400), "2000-02-29");
+        let expired = cert_reason("client error (Connect)", &cert, "2026-11-22");
+        assert_eq!(cert_cause(&expired, &cert).1, "CERT_DATE_INVALID");
+        assert_eq!(
+            cert_reason("client error (Connect)", &cert, "2015-04-01"),
+            "client error (Connect)"
+        );
         assert_eq!(pretty_date(""), "");
     }
 }
