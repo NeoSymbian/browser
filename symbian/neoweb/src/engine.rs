@@ -11,6 +11,8 @@ use neoweb_proto::{Command, EVENT_MAX, Event, FrameHeader, SERVER_NAME, VERSION,
 use slint::{Image, Rgb8Pixel, SharedPixelBuffer};
 
 const KERR_CORRUPT: i32 = -20;
+/// The engine in this build's ROM (`Z:`), when it is there.
+const ROM_ENGINE: &str = "z:\\sys\\bin\\neowebe.exe";
 
 fn connect() -> Result<Session, i32> {
     let (major, minor, build) = VERSION;
@@ -29,7 +31,14 @@ async fn start_server() -> Result<Session, i32> {
         Err(err::KERR_NOT_FOUND | err::KERR_SERVER_TERMINATED) => {}
         result => return result,
     }
-    let process = Process::spawn("neowebe.exe", "--serve")?;
+    // the engine of this ROM first: C: is shared by both A/B slots, so a C:\sys\bin copy can belong to the other
+    // slot's build (and speak another protocol); C: (drive=c builds) after it
+    let process = match Process::spawn(ROM_ENGINE, "--serve") {
+        Err(err::KERR_NOT_FOUND | err::KERR_PATH_NOT_FOUND) => {
+            Process::spawn("neowebe.exe", "--serve")?
+        }
+        r => r?,
+    };
     process.resume();
     for _ in 0..100 {
         e32::time::delay(100_000).await;
