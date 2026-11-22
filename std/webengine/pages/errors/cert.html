@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- NEOWEBE's certificate error page (browser UI5): blank under NEOWEB's own br2-cert-error page. Servo fills in
+     reason, bytes (the leaf certificate) and secret; the engine fills in the token. No button here: the override is
+     NEOWEB's "Open the site anyway", which appears only with Settings' switch on (B10) and runs __neoweb_allow(). -->
+<meta name="viewport" content="width=device-width">
+<title>Certificate error</title>
+<style>html,body{margin:0;height:100%;background:#101215}</style>
+<script type="text/plain" id="reason">${reason}</script>
+<script type="text/plain" id="bytes">${bytes}</script>
+<script>
+function __neoweb_allow() {
+  var x = new XMLHttpRequest();
+  x.open('POST', 'chrome:allowcert');
+  x.onloadend = function () { location.reload(true); };
+  x.send("${secret}&${bytes}");
+}
+if (window.top === window) {
+  console.log('neoweb:error ${token} cert ' + (document.getElementById('bytes').textContent || '-') + ' ' +
+    document.getElementById('reason').textContent);
+}
+</script>

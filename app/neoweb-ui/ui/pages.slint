@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Servo's frame and recovery page, plus the stand-in pages used for host previews (B08).
-import { Theme } from "@neoui/kit.slint";
+import { Theme, Glyph } from "@neoui/kit.slint";
 
 export component WebPage inherits Image {
     x: 0;
@@ -311,6 +311,292 @@ export component FakePages inherits Flickable {
             if root.page == 2: GitHub { }
             if root.page == 3: Other {
                 domain: root.domain;
+            }
+        }
+    }
+}
+
+// A wide 48 dp pill on the error pages: the blue answer, or the grey second choice with a blue icon.
+component PageButton inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> primary: true;
+    callback clicked;
+    height: 48 * Theme.dp;
+    border-radius: self.height / 2;
+    background: tap.pressed ? (primary ? #2f6fd6 : Theme.pressed) : (primary ? Theme.accent : Theme.field);
+    accessible-role: button;
+    accessible-label: text;
+    accessible-action-default => { root.clicked(); }
+    HorizontalLayout {
+        alignment: center;
+        spacing: 8 * Theme.dp;
+        if root.icon.width > 0: Glyph {
+            source: root.icon;
+            size: 20 * Theme.dp;
+            colorize: root.primary ? Theme.text : Theme.accent;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: root.text;
+            font-size: Theme.font-body;
+            font-weight: 600;
+            color: Theme.text;
+            vertical-alignment: center;
+        }
+    }
+
+    tap := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component DetailRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> value;
+    spacing: 10 * Theme.dp;
+    Text {
+        width: 92 * Theme.dp;
+        text: root.label;
+        font-size: Theme.font-label;
+        color: Theme.text-dim;
+    }
+    Text {
+        text: root.value;
+        font-family: "DejaVu Sans";
+        font-size: Theme.font-label;
+        color: Theme.text-secondary;
+        wrap: word-wrap;
+        horizontal-stretch: 1;
+    }
+}
+
+// br2-cert-error (UI5, B10): our page in place of the site. "Open the site anyway (unsafe)" only with Settings' switch.
+export component CertErrorPage inherits Rectangle {
+    in property <string> host;
+    // after the host: "sent a certificate that expired on 12 Apr 2015."
+    in property <string> sentence;
+    in property <string> issued-to;
+    in property <string> issued-by;
+    in property <string> valid;
+    in property <string> code;
+    in property <bool> allow-unsafe;
+    in-out property <bool> details;
+    callback back-to-safety();
+    callback open-anyway();
+    background: Theme.bg;
+    VerticalLayout {
+        alignment: start;
+        padding-left: 24 * Theme.dp;
+        padding-right: 24 * Theme.dp;
+        padding-top: 40 * Theme.dp;
+        spacing: 12 * Theme.dp;
+        Rectangle {
+            width: 56 * Theme.dp;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: #e5484d24;
+            Glyph {
+                source: @image-url("@neoui/icons/sys/lock.svg");
+                size: 30 * Theme.dp;
+                colorize: #ff6b6f;
+            }
+        }
+        Text {
+            text: "This site's identity can't be confirmed";
+            font-size: 22 * Theme.dp;
+            font-weight: 600;
+            color: Theme.text;
+            wrap: word-wrap;
+        }
+        Text {
+            text: root.host + " " + root.sentence + " Another site could be pretending to be it. Nothing has been sent to it.";
+            font-family: "DejaVu Sans";
+            font-size: 15 * Theme.dp;
+            color: Theme.text-secondary;
+            wrap: word-wrap;
+        }
+        PageButton {
+            text: "Back to safety";
+            clicked => { root.back-to-safety(); }
+        }
+        Rectangle {
+            height: 44 * Theme.dp;
+            accessible-role: button;
+            accessible-label: "Details";
+            HorizontalLayout {
+                alignment: start;
+                spacing: 8 * Theme.dp;
+                Text {
+                    text: "Details";
+                    font-size: 15 * Theme.dp;
+                    font-weight: 600;
+                    color: Theme.text;
+                    vertical-alignment: center;
+                }
+                Glyph {
+                    source: root.details ? @image-url("@neoui/icons/sys/chevron_down.svg") : @image-url("@neoui/icons/sys/chevron_right.svg");
+                    size: 18 * Theme.dp;
+                    colorize: Theme.text-secondary;
+                    y: (parent.height - self.height) / 2;
+                }
+            }
+            TouchArea {
+                clicked => { root.details = !root.details; }
+            }
+        }
+        if root.details: Rectangle {
+            border-radius: Theme.radius;
+            background: Theme.card;
+            border-width: 1px;
+            border-color: Theme.card-border;
+            VerticalLayout {
+                padding: 12 * Theme.dp;
+                spacing: 6 * Theme.dp;
+                DetailRow { label: "Issued to"; value: root.issued-to; }
+                DetailRow { label: "Issued by"; value: root.issued-by; }
+                DetailRow { label: "Valid"; value: root.valid; }
+                DetailRow { label: "Error"; value: root.code; }
+                if root.allow-unsafe: Rectangle {
+                    height: 36 * Theme.dp;
+                    accessible-role: button;
+                    accessible-label: "Open the site anyway (unsafe)";
+                    Text {
+                        x: 0;
+                        text: "Open the site anyway (unsafe)";
+                        font-size: 14 * Theme.dp;
+                        font-weight: 500;
+                        color: #ff6b6f;
+                    }
+                    TouchArea {
+                        clicked => { root.open-anyway(); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// br2-offline (UI5): the page didn't load; Retry, and Check Wi-Fi (Settings › Wi-Fi).
+export component OfflinePage inherits Rectangle {
+    in property <string> title;
+    in property <string> host;
+    in property <string> cause;
+    // "DNS lookup failed · NAME_NOT_RESOLVED"
+    in property <string> code;
+    callback retry();
+    callback check-wifi();
+    background: Theme.bg;
+    VerticalLayout {
+        alignment: center;
+        padding-left: 28 * Theme.dp;
+        padding-right: 28 * Theme.dp;
+        spacing: 14 * Theme.dp;
+        Rectangle {
+            width: 64 * Theme.dp;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: Theme.card;
+            border-width: 1px;
+            border-color: Theme.card-border;
+            Glyph {
+                source: @image-url("@neoui/icons/sys/wifi.svg");
+                size: 30 * Theme.dp;
+                colorize: Theme.text-dim;
+            }
+        }
+        Text {
+            text: root.title;
+            font-size: 22 * Theme.dp;
+            font-weight: 600;
+            color: Theme.text;
+            wrap: word-wrap;
+        }
+        Text {
+            text: root.host + " couldn't be reached: " + root.cause + ". Check that Wi-Fi or mobile data is on.";
+            font-family: "DejaVu Sans";
+            font-size: 15 * Theme.dp;
+            color: Theme.text-secondary;
+            wrap: word-wrap;
+        }
+        Text {
+            text: root.code;
+            font-size: 13 * Theme.dp;
+            color: Theme.text-dim;
+        }
+        HorizontalLayout {
+            spacing: 10 * Theme.dp;
+            padding-top: 6 * Theme.dp;
+            PageButton {
+                text: "Retry";
+                icon: @image-url("@neoui/icons/sys/refresh.svg");
+                clicked => { root.retry(); }
+            }
+            PageButton {
+                text: "Check Wi-Fi";
+                icon: @image-url("@neoui/icons/sys/wifi.svg");
+                primary: false;
+                clicked => { root.check-wifi(); }
+            }
+        }
+        Text {
+            text: "Check Wi-Fi opens Settings › Wi-Fi.";
+            font-size: 13 * Theme.dp;
+            color: Theme.text-dim;
+        }
+    }
+}
+
+// br2-captive (UI5): over the top of a page Wi-Fi opened for its login. Its height is the page's top inset.
+export component CaptiveBanner inherits Rectangle {
+    in property <string> ssid;
+    callback dismissed();
+    height: 60 * Theme.dp;
+    background: #13233d;
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: #3d8bfd59;
+    }
+    HorizontalLayout {
+        padding-left: 16 * Theme.dp;
+        padding-right: 8 * Theme.dp;
+        spacing: 12 * Theme.dp;
+        Glyph {
+            source: @image-url("@neoui/icons/sys/wifi.svg");
+            size: 22 * Theme.dp;
+            colorize: Theme.accent;
+            y: (parent.height - self.height) / 2;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2 * Theme.dp;
+            horizontal-stretch: 1;
+            Text {
+                text: "Sign in to Wi-Fi network '" + root.ssid + "'";
+                font-family: "DejaVu Sans";
+                font-size: 14.5 * Theme.dp;
+                font-weight: 600;
+                color: Theme.text;
+                overflow: elide;
+            }
+            Text {
+                text: "Opened by Wi-Fi: it needs a login";
+                font-size: 13 * Theme.dp;
+                color: Theme.text-secondary;
+            }
+        }
+        Rectangle {
+            width: 48 * Theme.dp;
+            accessible-role: button;
+            accessible-label: "Dismiss";
+            Glyph {
+                source: @image-url("@neoui/icons/sys/close.svg");
+                size: 24 * Theme.dp;
+                colorize: Theme.text-secondary;
+            }
+            TouchArea {
+                clicked => { root.dismissed(); }
             }
         }
     }

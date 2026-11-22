@@ -24,11 +24,11 @@ use e32::server::{Message, Server, Service};
 use e32::sys::TVersion;
 use euclid::Scale;
 use neoweb_proto::{
-    Command, DialogKind, Event, FrameHeader, Load, PressKind, Rect, SelectItem, SelectOp, TouchKind,
-    func,
+    Command, DialogKind, Event, FrameHeader, Load, PageErrorKind, PressKind, Rect, SelectItem, SelectOp,
+    TouchKind, func,
 };
 use servo::{
-    AllowOrDenyRequest, ClipboardDelegate, MouseButton, MouseButtonAction, MouseButtonEvent,
+    AllowOrDenyRequest, ClipboardDelegate, CookieSource, MouseButton, MouseButtonAction, MouseButtonEvent,
     MouseMoveEvent, Code, ConsoleLogLevel, CreateNewWebViewRequest, JSValue,
     PrefValue, StorageType, DevicePoint, EmbedderControl, EmbedderControlId,
     EventLoopWaker, FilePicker, ImeEvent, InputEvent, InputMethodType, Key, KeyState,
@@ -221,6 +221,38 @@ const LOGIN_SCRIPT: &str = r#"addEventListener('submit', e => {
   console.log('neoweb:login ' + (u ? u.value : ''));
 }, true);"#;
 
+/// Our error page's console line after the token: ` cert|net <base64 certificate or -> <reason>` (UI5).
+fn page_error(view: &WebView, line: &str) -> Option<Event> {
+    let mut parts = line.trim_start().splitn(3, ' ');
+    let kind = match parts.next()? {
+        "cert" => PageErrorKind::Cert,
+        "net" => PageErrorKind::Net,
+        _ => return None,
+    };
+    let cert = parts.next()?;
+    let summary = neoweb_core::safety::base64(cert)
+        .and_then(|der| neoweb_core::safety::cert_summary(&der))
+        .unwrap_or_default();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let reason = neoweb_core::safety::cert_reason(
+        parts.next().unwrap_or(""),
+        &summary,
+        &neoweb_core::safety::date_of(now),
+    );
+    println!("neowebe: page error {kind:?}: {reason}");
+    Some(Event::PageError {
+        kind,
+        reason,
+        host: view.url().and_then(|u| u.host_str().map(str::to_owned)).unwrap_or_default(),
+        issued_to: summary.issued_to,
+        issued_by: summary.issued_by,
+        valid_from: summary.valid_from,
+        valid_until: summary.valid_until,
+    })
+}
+
 /// The neoui keyboard (`KEYBOARD` mode) for a field: number and phone pads, else text.
 fn keyboard_mode(t: InputMethodType) -> u8 {
     match t {
@@ -408,7 +440,17 @@ impl WebViewDelegate for Delegate {
         }
     }
 
-    fn show_console_message(&self, _: WebView, _: ConsoleLogLevel, message: String) {
+    fn show_console_message(&self, view: WebView, _: ConsoleLogLevel, message: String) {
+        // our error pages (resources.rs), with this run's token: a site can't fake one
+        if let Some(rest) = message
+            .strip_prefix(crate::resources::ERROR_MARK)
+            .and_then(|r| r.strip_prefix(crate::resources::TOKEN.as_str()))
+        {
+            if let Some(e) = page_error(&view, rest) {
+                self.page(&view, e);
+            }
+            return;
+        }
         // LOGIN_SCRIPT's report; a page can fake it, but all it gets is our own "Save password?" sheet
         if let Some(user) = message.strip_prefix(LOGIN_MARK) {
             self.post(Event::Login { user: user.into() });
@@ -797,10 +839,13 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                     }
                 }
                 Command::ClearData => {
-                    servo.site_data_manager().clear_cookies(None);
-                    servo
-                        .site_data_manager()
-                        .clear_site_data(&[], StorageType::all());
+                    let data = servo.site_data_manager();
+                    data.clear_cookies(None);
+                    // an empty site list clears nothing: name every site that has data
+                    let sites: Vec<String> =
+                        data.site_data(StorageType::all()).iter().map(|s| s.name().to_owned()).collect();
+                    let sites: Vec<&str> = sites.iter().map(String::as_str).collect();
+                    data.clear_site_data(&sites, StorageType::all());
                     servo.network_manager().clear_cache();
                 }
                 Command::DownloadOp { id, op } => {
@@ -843,7 +888,13 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                     };
                     drop(tabs);
                     match cmd {
-                        Command::Reload => view.reload(),
+                        Command::Reload => {
+                            // Servo doesn't always report Started for a reload: the error page ends here (review)
+                            if let Some(t) = delegate.tabs.borrow_mut().of(&view) {
+                                t.error = None;
+                            }
+                            view.reload()
+                        }
                         Command::Stop => view.evaluate_javascript("window.stop()", |_| {}),
                         Command::Back => {
                             view.go_back(1);
@@ -854,6 +905,39 @@ pub fn serve(log: log::LevelFilter) -> Result<(), String> {
                         Command::Press { x, y } => press(&view, &shared, x, y),
                         Command::Select { op, x, y } => select(&view, &shared, op, x, y),
                         Command::Find { text, dir } => find(&view, &shared, &text, dir),
+                        // only our certificate page defines it (resources.rs); NEOWEB sends it only with B10 on
+                        Command::AllowCert => {
+                            if let Some(t) = delegate.tabs.borrow_mut().of(&view) {
+                                t.error = None;
+                            }
+                            view.evaluate_javascript(
+                                "typeof __neoweb_allow == 'function' && __neoweb_allow()",
+                                |_| {},
+                            )
+                        }
+                        Command::SiteInfo => {
+                            if let Some(url) = view.url() {
+                                let cookies = servo
+                                    .site_data_manager()
+                                    .cookies_for_url(url.clone(), CookieSource::HTTP)
+                                    .len() as u32;
+                                crate::siteinfo::site_info(&url, cookies, delegate.poster());
+                            }
+                        }
+                        Command::ClearSite => {
+                            if let Some(host) = view.url().and_then(|u| u.host_str().map(str::to_owned)) {
+                                let data = servo.site_data_manager();
+                                // Servo keys a site by its registered domain: every listed one that `host` is in
+                                let sites: Vec<String> = data
+                                    .site_data(StorageType::all())
+                                    .iter()
+                                    .map(|s| s.name().to_owned())
+                                    .filter(|n| host == *n || host.ends_with(&format!(".{n}")))
+                                    .collect();
+                                let sites: Vec<&str> = sites.iter().map(String::as_str).collect();
+                                data.clear_site_data(&sites, StorageType::all());
+                            }
+                        }
                         other => input(&view, &delegate, other),
                     }
                 }

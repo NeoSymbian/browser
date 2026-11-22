@@ -29,6 +29,10 @@
 //!   engine, into `C:\Data\Downloads`; [`Event::Download`] reports it; [`Command::DownloadOp`] pauses, resumes or
 //!   cancels it.
 //!
+//! - **Safety (1.5, UI5):** a certificate or network error shows NEOWEB's own page ([`Event::PageError`]);
+//!   [`Command::AllowCert`] opens the site anyway (only when Settings allows it, B10). [`Command::SiteInfo`] asks for
+//!   the site's connection and certificate ([`Event::SiteInfo`]); [`Command::ClearSite`] clears its cookies and data.
+//!
 //! Every message is a tag byte and little-endian fields; strings are a `u32` length and UTF-8; lists a `u32` count.
 
 #![no_std]
@@ -41,7 +45,7 @@ use alloc::vec::Vec;
 /// The engine's server name.
 pub const SERVER_NAME: &str = "NeoWebEngine";
 /// The protocol version (major, minor, build), checked at connect.
-pub const VERSION: (u8, u8, u16) = (1, 4, 0);
+pub const VERSION: (u8, u8, u16) = (1, 5, 0);
 /// Tab ids from here up are the engine's (a page's new window); below, NEOWEB's.
 pub const ENGINE_TABS: u32 = 0x8000_0000;
 /// Room for one encoded event (URLs and titles are cut to fit).
@@ -181,6 +185,12 @@ pub enum Command {
     Zoom(u32),
     /// Clear browsing data: cookies, site storage and the cache (1.4).
     ClearData,
+    /// Open the site of the shown certificate error anyway (1.5; NEOWEB sends it only when B10's switch is on).
+    AllowCert,
+    /// The shown page's connection and certificate: answered with [`Event::SiteInfo`] (1.5).
+    SiteInfo,
+    /// Clear the shown page's site: its cookies and stored data (1.5).
+    ClearSite,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -347,6 +357,37 @@ pub enum Event {
         total: u64,
         state: DownloadState,
     },
+    /// The page didn't load: NEOWEB shows its certificate error or No connection page (1.5). `reason` is the
+    /// engine's; the certificate fields are empty for a network error.
+    PageError {
+        kind: PageErrorKind,
+        reason: String,
+        host: String,
+        issued_to: String,
+        issued_by: String,
+        valid_from: String,
+        valid_until: String,
+    },
+    /// The answer to [`Command::SiteInfo`]: the TLS version ("TLS 1.3"), the certificate, the site's cookie count;
+    /// `error` is set (and the rest empty) when the connection failed or the page isn't https.
+    SiteInfo {
+        /// the site asked about (an answer for another page is stale)
+        host: String,
+        tls: String,
+        issued_to: String,
+        issued_by: String,
+        valid_until: String,
+        cookies: u32,
+        error: String,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageErrorKind {
+    /// The site's certificate failed verification.
+    Cert = 0,
+    /// The connection failed (no network, no such host, refused, timed out…).
+    Net = 1,
 }
 
 /// The start of the frame chunk.
@@ -528,6 +569,9 @@ impl Command {
             Command::DownloadOp { id, op } => w.u8(24).u32(*id).u8(*op as u8),
             Command::Zoom(p) => w.u8(25).u32(*p),
             Command::ClearData => w.u8(26),
+            Command::AllowCert => w.u8(27),
+            Command::SiteInfo => w.u8(28),
+            Command::ClearSite => w.u8(29),
         }
         .0
     }
@@ -618,6 +662,9 @@ impl Command {
             23 => Command::Download { url: r.str()? },
             25 => Command::Zoom(r.u32()?),
             26 => Command::ClearData,
+            27 => Command::AllowCert,
+            28 => Command::SiteInfo,
+            29 => Command::ClearSite,
             24 => Command::DownloadOp {
                 id: r.u32()?,
                 op: match r.u8()? {
@@ -751,6 +798,40 @@ impl Event {
                 .u64(*received)
                 .u64(*total)
                 .u8(*state as u8),
+            Event::PageError {
+                kind,
+                reason,
+                host,
+                issued_to,
+                issued_by,
+                valid_from,
+                valid_until,
+            } => w
+                .u8(19)
+                .u8(*kind as u8)
+                .str(reason, 1024)
+                .str(host, 256)
+                .str(issued_to, 512)
+                .str(issued_by, 512)
+                .str(valid_from, 64)
+                .str(valid_until, 64),
+            Event::SiteInfo {
+                host,
+                tls,
+                issued_to,
+                issued_by,
+                valid_until,
+                cookies,
+                error,
+            } => w
+                .u8(20)
+                .str(host, 256)
+                .str(tls, 64)
+                .str(issued_to, 512)
+                .str(issued_by, 512)
+                .str(valid_until, 64)
+                .u32(*cookies)
+                .str(error, 512),
         }
         .0
     }
@@ -863,6 +944,28 @@ impl Event {
                     _ => return Err(BadMessage),
                 },
             },
+            19 => Event::PageError {
+                kind: match r.u8()? {
+                    0 => PageErrorKind::Cert,
+                    1 => PageErrorKind::Net,
+                    _ => return Err(BadMessage),
+                },
+                reason: r.str()?,
+                host: r.str()?,
+                issued_to: r.str()?,
+                issued_by: r.str()?,
+                valid_from: r.str()?,
+                valid_until: r.str()?,
+            },
+            20 => Event::SiteInfo {
+                host: r.str()?,
+                tls: r.str()?,
+                issued_to: r.str()?,
+                issued_by: r.str()?,
+                valid_until: r.str()?,
+                cookies: r.u32()?,
+                error: r.str()?,
+            },
             _ => return Err(BadMessage),
         };
         r.end(e)
@@ -951,6 +1054,9 @@ mod tests {
             },
             Command::Zoom(115),
             Command::ClearData,
+            Command::AllowCert,
+            Command::SiteInfo,
+            Command::ClearSite,
         ];
         for c in all {
             assert_eq!(Command::decode(&c.encode()), Ok(c));
@@ -1043,6 +1149,24 @@ mod tests {
                 received: 3_355_443,
                 total: 8_808_038,
                 state: DownloadState::Downloading,
+            },
+            Event::PageError {
+                kind: PageErrorKind::Cert,
+                reason: "invalid peer certificate: Expired".to_string(),
+                host: "expired.badssl.com".to_string(),
+                issued_to: "*.badssl.com".to_string(),
+                issued_by: "COMODO RSA Domain Validation Secure Server CA".to_string(),
+                valid_from: "2015-04-09".to_string(),
+                valid_until: "2015-04-12".to_string(),
+            },
+            Event::SiteInfo {
+                host: "en.wikipedia.org".to_string(),
+                tls: "TLS 1.3".to_string(),
+                issued_to: "*.wikipedia.org".to_string(),
+                issued_by: "DigiCert TLS Hybrid ECC SHA384 2020 CA1".to_string(),
+                valid_until: "2027-01-15".to_string(),
+                cookies: 3,
+                error: String::new(),
             },
         ];
         for e in all {

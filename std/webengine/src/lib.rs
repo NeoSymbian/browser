@@ -11,7 +11,9 @@ unsafe extern "C" {
 }
 
 mod random;
+mod resources;
 mod serve;
+mod siteinfo;
 mod downloads;
 mod swgl;
 mod tabs;

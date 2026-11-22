@@ -811,3 +811,136 @@ export component LinkMenu inherits Rectangle {
         }
     }
 }
+
+// One row of Site info: a 22 dp glyph, a title and a detail line; a Clear button for the site's data.
+component InfoRow inherits Rectangle {
+    in property <image> icon;
+    in property <color> tint: Theme.text-secondary;
+    in property <string> title;
+    in property <string> detail;
+    in property <bool> line;
+    in property <string> button;
+    callback pressed();
+    min-height: 64 * Theme.dp;
+    if root.line: Rectangle {
+        x: 56 * Theme.dp;
+        y: 0;
+        width: parent.width - self.x;
+        height: 1px;
+        background: #ffffff12;
+    }
+    HorizontalLayout {
+        padding-left: 20 * Theme.dp;
+        padding-right: 12 * Theme.dp;
+        padding-top: 8 * Theme.dp;
+        padding-bottom: 8 * Theme.dp;
+        spacing: 16 * Theme.dp;
+        Glyph {
+            source: root.icon;
+            size: 22 * Theme.dp;
+            colorize: root.tint;
+            y: (parent.height - self.height) / 2;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2 * Theme.dp;
+            horizontal-stretch: 1;
+            Text {
+                text: root.title;
+                font-size: Theme.font-body;
+                color: Theme.text;
+            }
+            if root.detail != "": Text {
+                text: root.detail;
+                font-family: "DejaVu Sans";
+                font-size: Theme.font-label;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+            }
+        }
+        if root.button != "": Pill {
+            text: root.button;
+            kind: 1;
+            height: 36 * Theme.dp;
+            min-width: 0;
+            y: (parent.height - self.height) / 2;
+            clicked => { root.pressed(); }
+        }
+    }
+}
+
+// br2-siteinfo (UI5): the lock's sheet. The engine answers with the connection, the certificate and the cookies;
+// until then the rows say "Checking…". "Site settings" waits for per-site settings.
+export component SiteInfoSheet inherits Sheet {
+    in property <string> host;
+    in property <string> page-title;
+    in property <bool> secure;
+    in property <bool> checked;
+    in property <string> tls;
+    in property <string> issued-by;
+    in property <string> valid-until;
+    in property <string> cookies;
+    in property <string> error;
+    // the site's letter in the circle (as the Opened pages cards)
+    in property <string> initial;
+    callback clear();
+    HorizontalLayout {
+        padding-left: 20 * Theme.dp;
+        padding-right: 20 * Theme.dp;
+        padding-top: 8 * Theme.dp;
+        padding-bottom: 12 * Theme.dp;
+        spacing: 12 * Theme.dp;
+        Rectangle {
+            width: 40 * Theme.dp;
+            height: self.width;
+            border-radius: self.width / 2;
+            background: #eaecf0;
+            Text {
+                text: root.initial;
+                font-size: 18 * Theme.dp;
+                font-weight: 600;
+                color: #202122;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2 * Theme.dp;
+            horizontal-stretch: 1;
+            Text {
+                text: root.host;
+                font-family: "DejaVu Sans";
+                font-size: 17 * Theme.dp;
+                font-weight: 600;
+                color: Theme.text;
+                overflow: elide;
+            }
+            Text {
+                text: root.page-title;
+                font-family: "DejaVu Sans";
+                font-size: Theme.font-label;
+                color: Theme.text-secondary;
+                overflow: elide;
+            }
+        }
+    }
+    InfoRow {
+        icon: root.secure ? @image-url("@neoui/icons/sys/lock.svg") : @image-url("@neoui/icons/sys/info.svg");
+        tint: root.secure ? Theme.ok : #ff6b6f;
+        title: root.secure ? "Connection is secure" : "Connection is not secure";
+        detail: !root.secure ? "What you send to this site could be seen by others." : !root.checked ? "Checking…" : root.error != "" ? root.error : "What you send and receive is encrypted (" + root.tls + ").";
+    }
+    if root.secure: InfoRow {
+        line: true;
+        icon: @image-url("@neoui/icons/sys/lock.svg");
+        title: "Certificate";
+        detail: !root.checked ? "Checking…" : root.error != "" ? "Couldn't be checked" : "Issued by " + root.issued-by + "\nValid until " + root.valid-until;
+    }
+    InfoRow {
+        line: true;
+        icon: @image-url("@neoui/icons/sys/data.svg");
+        title: "Cookies & site data";
+        detail: root.cookies;
+        button: "Clear";
+        pressed => { root.clear(); }
+    }
+}

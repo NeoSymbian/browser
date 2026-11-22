@@ -24,8 +24,10 @@ use neoui_proto::{Fingers, InputEvent, TouchPhase, ipc};
 use neoweb_core::controls::{self, BackStep};
 use neoweb_core::input::{self, Suggestion};
 use neoweb_core::tabs::{Change, Tabs};
-use neoweb_core::{Header, LiveTab, START, count_label, start};
-use neoweb_proto::{Command, DialogKind, Event, PressKind, SelectItem, SelectOp, TouchKind};
+use neoweb_core::{Header, LiveTab, START, Security, count_label, safety, start};
+use neoweb_proto::{
+    Command, DialogKind, Event, PageErrorKind, PressKind, SelectItem, SelectOp, TouchKind,
+};
 use neoweb_ui::{
     BrowserApp, BrowserState, KeyboardFocus, Kit, SelectRow, ShortcutTile, Spot, Suggest, TabCard,
     Theme,
@@ -33,6 +35,11 @@ use neoweb_ui::{
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 e32::main!(main);
+
+/// The pages other apps open NEOWEB on (the shell's `OPEN`): the Downloads view (a download's shade entry) and a
+/// Wi-Fi login page (neoui wifi.rs, UI5; the argument is `<url>\n<network name>`).
+const PAGE_DOWNLOADS: u16 = 3;
+const PAGE_PORTAL: u16 = 5;
 
 fn main() -> i32 {
     match run() {
@@ -122,6 +129,10 @@ struct Model {
     lib: library::Library,
     /// the shell's QUERY is "Clear browsing data?"
     clear_query: bool,
+    /// the tab Wi-Fi opened for its login, and the network's name (br2-captive's banner)
+    captive: Option<(u32, String)>,
+    /// sites opened anyway past a certificate error (B10): their header says Not secure for this run
+    unsafe_hosts: Vec<String>,
 }
 
 impl Model {
@@ -239,6 +250,38 @@ impl Model {
             }
             "new-tab" => self.switch(ui, |t| t.open(START)),
             "tabs-options" | "options" => ui.invoke_show_sheet(6),
+            // br2-offline: Settings › Wi-Fi, a screen of the shell
+            "check-wifi" => {
+                if let Err(e) = app.open("settings", 0, "wifi") {
+                    dprintln!("neoweb: open Settings › Wi-Fi {}", e);
+                }
+            }
+            // br2-siteinfo: the sheet at once, its rows when the engine answers
+            "site-info" if self.showing_web && self.live.error.is_none() => {
+                s.set_site_title(self.live.title.as_str().into());
+                let initial = Header::of(&self.live.url)
+                    .domain
+                    .trim_start_matches("www.")
+                    .chars()
+                    .next();
+                s.set_site_initial(
+                    initial
+                        .map(|c| c.to_uppercase().collect::<String>())
+                        .unwrap_or_default()
+                        .as_str()
+                        .into(),
+                );
+                s.set_site_checked(false);
+                s.set_site_cookies("".into());
+                ui.invoke_show_sheet(7);
+                self.out.push(Command::SiteInfo);
+            }
+            "site-clear" => {
+                ui.invoke_show_sheet(0);
+                self.out.push(Command::ClearSite);
+                self.note = Some("Site data cleared");
+            }
+            "captive-dismiss" => self.captive = None,
             "tabs-back" => {}
             "option" => match i {
                 0 => self.switch(ui, |t| t.open(START)),
@@ -533,8 +576,31 @@ impl Model {
             },
             "forward" if !self.showing_web => self.showing_web = !self.live.url.is_empty(),
             "forward" if self.live.forward => return Some(Command::Forward),
-            "reload" if self.live.crashed => return self.go(ui, self.live.url.clone()),
-            "reload" if self.showing_web => return Some(Command::Reload),
+            "reload" | "retry" if self.live.crashed => return self.go(ui, self.live.url.clone()),
+            "retry" => {
+                // Servo doesn't always report Started for a reload: the error page ends here (review)
+                self.live.error = None;
+                return Some(Command::Reload);
+            }
+            // br2-cert-error: back where the user was, else the start page
+            "safety" if self.live.back => return Some(Command::Back),
+            "safety" => {
+                self.live.error = None;
+                self.showing_web = false;
+            }
+            // B10: only with Settings' switch on; the engine's page does the override
+            "cert-allow" if self.lib.settings.allow_unsafe_certs => {
+                let host = Header::of(&self.live.url).domain;
+                if !self.unsafe_hosts.contains(&host) {
+                    self.unsafe_hosts.push(host);
+                }
+                self.live.error = None;
+                return Some(Command::AllowCert);
+            }
+            "reload" if self.showing_web => {
+                self.live.error = None;
+                return Some(Command::Reload);
+            }
             "stop" => {
                 self.live.loading.stop();
                 return Some(Command::Stop);
@@ -744,6 +810,28 @@ impl Model {
                     ui.invoke_show_sheet(4);
                 }
             }
+            // an answer for a page no longer shown is stale (review)
+            Event::SiteInfo { host, .. } if host != Header::of(&self.live.url).domain => {}
+            Event::SiteInfo {
+                tls,
+                issued_by,
+                valid_until,
+                cookies,
+                error,
+                ..
+            } => {
+                s.set_site_checked(true);
+                s.set_site_tls(tls.as_str().into());
+                s.set_site_by(issued_by.as_str().into());
+                s.set_site_until(safety::pretty_date(&valid_until).as_str().into());
+                s.set_site_error(error.as_str().into());
+                let n = match cookies {
+                    0 => String::from("No cookies"),
+                    1 => String::from("1 cookie"),
+                    n => alloc::format!("{n} cookies"),
+                };
+                s.set_site_cookies(n.as_str().into());
+            }
             Event::ClipboardGet { id } => {
                 return Some(Command::Clipboard {
                     id,
@@ -859,6 +947,8 @@ impl Model {
         let covered = ui.get_sheet_open() || st.get_tabs_open() || st.get_library() != 0 || on_bar;
         let in_page = self.showing_web
             && !self.live.crashed
+            // the certificate and No connection pages are NEOWEB's own (UI5): their buttons take the touches
+            && self.live.error.is_none()
             && !self.editing
             && !covered
             && (0..ui.get_page_width_px()).contains(&x)
@@ -928,14 +1018,55 @@ impl Model {
     fn show(&self, ui: &BrowserApp) {
         let header = Header::of(self.url());
         let s = ui.global::<BrowserState>();
-        s.set_page(if !self.showing_web {
-            0
-        } else if self.live.crashed {
-            5
-        } else {
-            4
-        });
-        s.set_security(header.security as i32);
+        let error = self.live.error.as_ref().filter(|_| self.showing_web);
+        s.set_page(
+            match (self.showing_web, self.live.crashed, error.map(|e| e.kind)) {
+                (false, ..) => 0,
+                (_, true, _) => 5,
+                (_, _, Some(PageErrorKind::Cert)) => 6,
+                (_, _, Some(PageErrorKind::Net)) => 7,
+                _ => 4,
+            },
+        );
+        // the error pages' headers: "Not secure" for a certificate, the plain info glyph for one that didn't load
+        s.set_security(match error.map(|e| e.kind) {
+            Some(PageErrorKind::Cert) => Security::NotSecure,
+            Some(PageErrorKind::Net) => Security::Local,
+            None if self.unsafe_hosts.contains(&header.domain) => Security::NotSecure,
+            None => header.security,
+        } as i32);
+        if let Some(e) = error {
+            let host = if e.host.is_empty() {
+                header.domain.clone()
+            } else {
+                e.host.clone()
+            };
+            s.set_error_host(host.as_str().into());
+            if e.kind == PageErrorKind::Cert {
+                let (sentence, code) = safety::cert_cause(&e.reason, &e.cert);
+                s.set_error_text(sentence.as_str().into());
+                s.set_error_code(code.into());
+                s.set_cert_to(e.cert.issued_to.as_str().into());
+                s.set_cert_by(e.cert.issued_by.as_str().into());
+                let valid = match (e.cert.valid_from.as_str(), e.cert.valid_until.as_str()) {
+                    ("", "") => String::new(),
+                    (a, b) => {
+                        alloc::format!("{} – {}", safety::pretty_date(a), safety::pretty_date(b))
+                    }
+                };
+                s.set_cert_valid(valid.as_str().into());
+            } else {
+                let c = safety::net_cause(&e.reason);
+                s.set_error_title(c.title.into());
+                s.set_error_text(c.cause.into());
+                s.set_error_code(alloc::format!("{} · {}", c.short, c.code).as_str().into());
+            }
+        }
+        let captive = self
+            .captive
+            .as_ref()
+            .filter(|(t, _)| self.showing_web && Some(*t) == self.tabs.current);
+        s.set_captive_ssid(captive.map(|(_, n)| n.as_str()).unwrap_or("").into());
         s.set_domain(header.domain.as_str().into());
         // The local Start page precedes the engine's first history entry.
         s.set_can_back(self.showing_web);
@@ -1209,7 +1340,18 @@ fn run() -> Result<(), i32> {
                         AppEvent::Notified { id, action } => {
                             m.lib.notified(&app, &ui, id, action.into())
                         }
-                        AppEvent::Open { page: 3 } => {
+                        AppEvent::Open { page: PAGE_PORTAL } => {
+                            // Wi-Fi's "Sign in" (br2-captive): its login page in a new tab, under the banner
+                            let arg = app.arg().unwrap_or_default();
+                            let (url, network) = arg.split_once('\n').unwrap_or((arg.as_str(), ""));
+                            if url.starts_with("http") {
+                                m.switch(&ui, |t| t.open(url));
+                                m.captive = m.tabs.current.map(|t| (t, String::from(network)));
+                            }
+                        }
+                        AppEvent::Open {
+                            page: PAGE_DOWNLOADS,
+                        } => {
                             ui.invoke_show_library(3);
                             m.lib.show(&ui);
                         }
@@ -1287,7 +1429,8 @@ fn run() -> Result<(), i32> {
                             | Event::Found { .. }
                             | Event::TabInfo { .. }
                             | Event::Created { .. }
-                            | Event::Download { .. }),
+                            | Event::Download { .. }
+                            | Event::SiteInfo { .. }),
                         ) => match m.control(&app, &ui, event) {
                             Some(answer) => connection.send(answer),
                             None => Ok(()),
@@ -1401,6 +1544,8 @@ fn sync(app: &App, ui: &BrowserApp, m: &mut Model, shown: &mut Page) -> Result<(
         "New tab"
     } else if m.live.crashed {
         "Page crashed"
+    } else if m.live.error.is_some() {
+        "Page not loaded"
     } else if m.live.title.is_empty() {
         m.url()
     } else {

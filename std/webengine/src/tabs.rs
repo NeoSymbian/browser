@@ -15,6 +15,8 @@ pub struct Tab {
     pub back: bool,
     pub forward: bool,
     pub loading: bool,
+    /// the error page it shows (UI5), until its next load
+    pub error: Option<Event>,
 }
 
 #[derive(Default)]
@@ -34,6 +36,7 @@ impl Tabs {
             back: false,
             forward: false,
             loading: true,
+            error: None,
         });
     }
 
@@ -75,7 +78,7 @@ impl Tabs {
             self.shown = Some(id);
             return Vec::new();
         }
-        let events = vec![
+        let mut events = vec![
             Event::Url(t.url.clone()),
             Event::Title(t.title.clone()),
             Event::History {
@@ -88,6 +91,7 @@ impl Tabs {
                 Load::Complete
             }),
         ];
+        events.extend(t.error.clone());
         self.shown = Some(id);
         events
     }
@@ -108,7 +112,13 @@ impl Tabs {
             Event::Url(u) => t.url.clone_from(u),
             Event::Title(s) => t.title.clone_from(s),
             Event::History { back, forward } => (t.back, t.forward) = (*back, *forward),
-            Event::Load(l) => t.loading = *l != Load::Complete,
+            Event::Load(l) => {
+                t.loading = *l != Load::Complete;
+                if *l == Load::Started {
+                    t.error = None;
+                }
+            }
+            Event::PageError { .. } => t.error = Some(event.clone()),
             _ => {}
         }
         if shown == Some(t.id) {
