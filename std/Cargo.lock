@@ -3404,7 +3404,7 @@ dependencies = [
 [[package]]
 name = "mozjs"
 version = "0.26.13"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=b028449fd28790a6d7a36e8be6f071a7358467dc#b028449fd28790a6d7a36e8be6f071a7358467dc"
 dependencies = [
  "bindgen",
  "cc",
@@ -3418,7 +3418,7 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_collections"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=b028449fd28790a6d7a36e8be6f071a7358467dc#b028449fd28790a6d7a36e8be6f071a7358467dc"
 dependencies = [
  "displaydoc",
  "icu_casemap",
@@ -3431,7 +3431,7 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_normalizer"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=b028449fd28790a6d7a36e8be6f071a7358467dc#b028449fd28790a6d7a36e8be6f071a7358467dc"
 dependencies = [
  "displaydoc",
  "icu_properties",
@@ -3448,12 +3448,12 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_normalizer_data"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=b028449fd28790a6d7a36e8be6f071a7358467dc#b028449fd28790a6d7a36e8be6f071a7358467dc"
 
 [[package]]
 name = "mozjs_normalizer_glue"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=b028449fd28790a6d7a36e8be6f071a7358467dc#b028449fd28790a6d7a36e8be6f071a7358467dc"
 dependencies = [
  "cbindgen",
  "encoding_rs",
@@ -3465,7 +3465,7 @@ dependencies = [
 [[package]]
 name = "mozjs_sys"
 version = "153.6.0-1"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=b028449fd28790a6d7a36e8be6f071a7358467dc#b028449fd28790a6d7a36e8be6f071a7358467dc"
 dependencies = [
  "bindgen",
  "cc",
@@ -3482,7 +3482,7 @@ dependencies = [
 [[package]]
 name = "mozjs_utf16_iter"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=b028449fd28790a6d7a36e8be6f071a7358467dc#b028449fd28790a6d7a36e8be6f071a7358467dc"
 dependencies = [
  "mozjs_icu_collections",
 ]
@@ -3490,7 +3490,7 @@ dependencies = [
 [[package]]
 name = "mozjs_utf8_iter"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=b028449fd28790a6d7a36e8be6f071a7358467dc#b028449fd28790a6d7a36e8be6f071a7358467dc"
 dependencies = [
  "mozjs_icu_collections",
 ]

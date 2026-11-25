@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// CXXSMOKE's C++ half (lib.rs): what SpiderMonkey's C++ leans on, built with the SDK's armv7-symbian-g++ (C++20,
+// CXXSMOKE's C++ half (lib.rs): what SpiderMonkey's C++ leans on, built with the SDK's armv8-symbian-g++ (C++20,
 // libstdc++'s headers over P.I.P.S.).
 #include <algorithm>
 #include <atomic>
