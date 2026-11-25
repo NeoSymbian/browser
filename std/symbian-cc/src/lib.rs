@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-//! For build scripts: a `cc::Build` that compiles C/C++ for `armv7a-symbian-eabi` with the SDK's
+//! For build scripts: a `cc::Build` that compiles C/C++ for `armv8a-symbian-eabi` with the SDK's
 //! `armv7-symbian-{gcc,g++}` (tools/symbian-sdk.sh; `NEOSYMBIAN_SDK` overrides `~/.local/share/neosymbian-sdk`).
 //! The wrappers carry every target flag, so cc's own defaults are off.
 

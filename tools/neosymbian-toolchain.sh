@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: Apache-2.0
 # The `neosymbian` Rust toolchain (docs browser/wb2-std.md, WB2c): the pinned nightly with NeoSymbian/rust's `library/`
-# (target_os = "symbian") as its rust-src, so `-Zbuild-std` builds std for armv7a-symbian-eabi. The shared nightly
+# (target_os = "symbian") as its rust-src, so `-Zbuild-std` builds std for armv8a-symbian-eabi. The shared nightly
 # stays untouched: this is a copy, registered with `rustup toolchain link`.
 #
 #   tools/neosymbian-toolchain.sh RUST_CHECKOUT [LIBC_CHECKOUT]

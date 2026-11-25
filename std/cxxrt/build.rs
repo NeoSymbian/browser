@@ -12,8 +12,8 @@ fn main() {
     // red-black tree, std::list's hook, std::unordered_map's rehash policy (only floor() from libm)
     let bin = symbian_cc::sdk_bin();
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    // the ARMv5TE softfp multilib's (asked of the plain compiler: the wrapper's ARMv7 flags would pick the Thumb
-    // ARMv7 one, whose MOVW/MOVT relocations an E32 image cannot take)
+    // the ARMv5TE softfp multilib's (asked of the plain compiler: the wrapper's ARMv8 flags would pick the Thumb
+    // ARMv8 one, whose MOVW/MOVT relocations an E32 image cannot take)
     let lib = Command::new(bin.join("../arm-gnu/bin/arm-none-eabi-gcc"))
         .args([
             "-marm",

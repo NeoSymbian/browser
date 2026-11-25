@@ -828,7 +828,7 @@ dependencies = [
 [[package]]
 name = "e32"
 version = "0.1.0"
-source = "git+https://github.com/NeoSymbian/e32-rs?rev=cedbcd2ee7540e2e73e1dc1f7dc19dd6d42721f8#cedbcd2ee7540e2e73e1dc1f7dc19dd6d42721f8"
+source = "git+https://github.com/NeoSymbian/e32-rs?rev=206b6c28cf49ef2f6e746580df97f05921500c35#206b6c28cf49ef2f6e746580df97f05921500c35"
 dependencies = [
  "critical-section",
  "e32-sys",
@@ -838,7 +838,7 @@ dependencies = [
 [[package]]
 name = "e32-sys"
 version = "0.1.0"
-source = "git+https://github.com/NeoSymbian/e32-rs?rev=cedbcd2ee7540e2e73e1dc1f7dc19dd6d42721f8#cedbcd2ee7540e2e73e1dc1f7dc19dd6d42721f8"
+source = "git+https://github.com/NeoSymbian/e32-rs?rev=206b6c28cf49ef2f6e746580df97f05921500c35#206b6c28cf49ef2f6e746580df97f05921500c35"
 
 [[package]]
 name = "either"
@@ -2579,7 +2579,7 @@ dependencies = [
 [[package]]
 name = "neoapp"
 version = "0.1.0"
-source = "git+https://github.com/NeoSymbian/neoui?rev=0ca50cfb6ba6ebd488658e440da229523ef50601#0ca50cfb6ba6ebd488658e440da229523ef50601"
+source = "git+https://github.com/NeoSymbian/neoui?rev=222c43f8116a6dba9ff170997ae7dc0feef055a0#222c43f8116a6dba9ff170997ae7dc0feef055a0"
 dependencies = [
  "e32",
  "neoui-proto",
@@ -2597,7 +2597,7 @@ dependencies = [
 [[package]]
 name = "neoui-proto"
 version = "0.1.0"
-source = "git+https://github.com/NeoSymbian/neoui?rev=0ca50cfb6ba6ebd488658e440da229523ef50601#0ca50cfb6ba6ebd488658e440da229523ef50601"
+source = "git+https://github.com/NeoSymbian/neoui?rev=222c43f8116a6dba9ff170997ae7dc0feef055a0#222c43f8116a6dba9ff170997ae7dc0feef055a0"
 
 [[package]]
 name = "neoweb"
