@@ -1,20 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
-# ARMv7-A + NEON, softfp, with std (targets/armv7a-symbian-eabi.json; docs browser/wb2-std.md):
-#   cargo sym    the staticlibs: target/armv7a-symbian-eabi/release/lib*.a, for build's rust/ (exes.txt)
+# ARMv8-A AArch32 (ARM state) with VFP/NEON/CRC/AES/SHA, softfp, with std (targets/armv8a-symbian-eabi.json, the std
+# twin of NeoSymbian/e32-rs's no_std target; docs browser/wb2-std.md, user-side-smp.md US4):
+#   cargo sym    the staticlibs: target/armv8a-symbian-eabi/release/lib*.a, for build's rust/ (exes.txt)
 [alias]
-sym = "build --release --target targets/armv7a-symbian-eabi.json -Zjson-target-spec -Zbuild-std=std,panic_abort"
+sym = "build --release --target targets/armv8a-symbian-eabi.json -Zjson-target-spec -Zbuild-std=std,panic_abort"
 
 
 [env]
-# mozjs_sys: SpiderMonkey from source (no prebuilt archive exists for armv7a-symbian-eabi)
+# mozjs_sys: SpiderMonkey from source (no prebuilt archive exists for armv8a-symbian-eabi)
 MOZJS_FROM_SOURCE = "1"
 # build scripts that call rustc for the target by name (autocfg) find its JSON here
 RUST_TARGET_PATH = { value = "targets", relative = true }
 # C and C++ dependencies (sqlite, zlib, zstd, aws-lc, harfbuzz, freetype, swgl...) build with the SDK's wrappers
 # (tools/symbian-sdk.sh): put ~/.local/share/neosymbian-sdk/bin on PATH
-CC_armv7a_symbian_eabi = "armv7-symbian-gcc"
-CXX_armv7a_symbian_eabi = "armv7-symbian-g++"
-AR_armv7a_symbian_eabi = "armv7-symbian-ar"
+# (the wrappers keep their armv7- names; they carry the ARMv8 flags)
+CC_armv8a_symbian_eabi = "armv7-symbian-gcc"
+CXX_armv8a_symbian_eabi = "armv7-symbian-g++"
+AR_armv8a_symbian_eabi = "armv7-symbian-ar"
 LIBZ_SYS_STATIC = "1"
 # aws-lc: seed from the OS (P.I.P.S.'s /dev/urandom = the kernel's secure RNG), not CPU-jitter sampling (its
 # health test aborts here, and it is slow)
@@ -22,6 +24,6 @@ AWS_LC_SYS_NO_JITTER_ENTROPY = "1"
 # sqlite: no mmap (P.I.P.S.'s is unusable), no extension loading
 LIBSQLITE3_FLAGS = "-DSQLITE_MAX_MMAP_SIZE=0 -DSQLITE_OMIT_LOAD_EXTENSION"
 
-[target.armv7a-symbian-eabi]
+[target.armv8a-symbian-eabi]
 # getrandom 0.3/0.4: the kernel's secure RNG through webengine's __getrandom_v03_custom (webengine/src/random.rs)
 rustflags = ["--cfg", 'getrandom_backend="custom"']

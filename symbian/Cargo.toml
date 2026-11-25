@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# NEOWEB.EXE, the browser app (docs browser/ui.md): built only for armv5te-none-eabi with a pinned nightly
+# NEOWEB.EXE, the browser app (docs browser/ui.md): built only for targets/armv8a-neosymbian-eabi.json (US4) with a pinned nightly
 # (build-std), like neoui/symbian. GPL-3.0 because it links Slint under GPL-3.0 (NeoSymbian decision 2026-11-06). The
 # pins must match neoui's at the rev below: one e32 (it defines the global allocator) and one Slint in the ROM.
 [workspace]
@@ -7,9 +7,9 @@ resolver = "3"
 members = ["neoweb", "pipsprobe"]
 
 [workspace.dependencies]
-e32 = { git = "https://github.com/NeoSymbian/e32-rs", rev = "cedbcd2ee7540e2e73e1dc1f7dc19dd6d42721f8", features = ["critical-section"] }
-neoui-proto = { git = "https://github.com/NeoSymbian/neoui", rev = "0ca50cfb6ba6ebd488658e440da229523ef50601" }
-neoapp = { git = "https://github.com/NeoSymbian/neoui", rev = "0ca50cfb6ba6ebd488658e440da229523ef50601" }
+e32 = { git = "https://github.com/NeoSymbian/e32-rs", rev = "206b6c28cf49ef2f6e746580df97f05921500c35", features = ["critical-section"] }
+neoui-proto = { git = "https://github.com/NeoSymbian/neoui", rev = "222c43f8116a6dba9ff170997ae7dc0feef055a0" }
+neoapp = { git = "https://github.com/NeoSymbian/neoui", rev = "222c43f8116a6dba9ff170997ae7dc0feef055a0" }
 slint = { version = "=1.18.1", default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "libm", "renderer-software"] }
 neoweb-core = { path = "../app/neoweb-core" }
 neoweb-ui = { path = "../app/neoweb-ui" }

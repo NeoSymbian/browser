@@ -1,10 +1,9 @@
-# The Symbian user side is built -march=armv5te, ARM/Thumb, soft-float ABI (NeoSymbian/build toolchain/symcc).
-# Never use an eabihf target: it passes floats in VFP registers and breaks calls into Symbian libraries.
+# NEOWEB.EXE (no_std, a neoui app) and PIPSPROB: ARMv8-A AArch32, ARM state, VFP/NEON inside functions, soft-float
+# calling convention (docs user-side-smp.md US4). Never use an eabihf target.
 #
-#   cargo arm    the Symbian staticlibs: target/armv5te-none-eabi/release/lib*.a (core built from source: tier 3)
-#   cargo test   host unit tests of the pure parts (e32-sys, e32)
+#   cargo arm          the staticlibs: target/armv8a-neosymbian-eabi/release/lib*.a (core built from source)
+#   cargo clippy-arm   clippy for the same target
+# targets/armv8a-neosymbian-eabi.json is a byte-identical copy of NeoSymbian/e32-rs's; the std EXEs (std/) use its twin.
 [alias]
-arm = "build --release --target armv5te-none-eabi -Zbuild-std=core,alloc,compiler_builtins -Zbuild-std-features=compiler-builtins-mem"
-
-# ARMv7-A + NEON, softfp (e32-rs targets/armv7a-neosymbian-eabi.json, browser/wb2-std.md WB2a): the WB2 test EXEs
-arm7 = "build --release --target targets/armv7a-neosymbian-eabi.json -Zjson-target-spec -Zbuild-std=core,alloc,compiler_builtins -Zbuild-std-features=compiler-builtins-mem"
+arm = "build --release --target targets/armv8a-neosymbian-eabi.json -Zjson-target-spec -Zbuild-std=core,alloc,compiler_builtins -Zbuild-std-features=compiler-builtins-mem"
+clippy-arm = "clippy --release --target targets/armv8a-neosymbian-eabi.json -Zjson-target-spec -Zbuild-std=core,alloc,compiler_builtins -Zbuild-std-features=compiler-builtins-mem"

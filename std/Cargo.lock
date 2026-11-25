@@ -1498,7 +1498,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 [[package]]
 name = "e32"
 version = "0.1.0"
-source = "git+https://github.com/NeoSymbian/e32-rs?rev=645e33bac24019bcfbb8126eb09caecbe6b6f90e#645e33bac24019bcfbb8126eb09caecbe6b6f90e"
+source = "git+https://github.com/NeoSymbian/e32-rs?rev=206b6c28cf49ef2f6e746580df97f05921500c35#206b6c28cf49ef2f6e746580df97f05921500c35"
 dependencies = [
  "e32-sys",
  "linked_list_allocator",
@@ -1507,7 +1507,7 @@ dependencies = [
 [[package]]
 name = "e32-sys"
 version = "0.1.0"
-source = "git+https://github.com/NeoSymbian/e32-rs?rev=645e33bac24019bcfbb8126eb09caecbe6b6f90e#645e33bac24019bcfbb8126eb09caecbe6b6f90e"
+source = "git+https://github.com/NeoSymbian/e32-rs?rev=206b6c28cf49ef2f6e746580df97f05921500c35#206b6c28cf49ef2f6e746580df97f05921500c35"
 
 [[package]]
 name = "ecdsa"
@@ -3404,7 +3404,7 @@ dependencies = [
 [[package]]
 name = "mozjs"
 version = "0.26.13"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
 dependencies = [
  "bindgen",
  "cc",
@@ -3418,7 +3418,7 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_collections"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
 dependencies = [
  "displaydoc",
  "icu_casemap",
@@ -3431,7 +3431,7 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_normalizer"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
 dependencies = [
  "displaydoc",
  "icu_properties",
@@ -3448,12 +3448,12 @@ dependencies = [
 [[package]]
 name = "mozjs_icu_normalizer_data"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
 
 [[package]]
 name = "mozjs_normalizer_glue"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
 dependencies = [
  "cbindgen",
  "encoding_rs",
@@ -3465,7 +3465,7 @@ dependencies = [
 [[package]]
 name = "mozjs_sys"
 version = "153.6.0-1"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
 dependencies = [
  "bindgen",
  "cc",
@@ -3482,7 +3482,7 @@ dependencies = [
 [[package]]
 name = "mozjs_utf16_iter"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
 dependencies = [
  "mozjs_icu_collections",
 ]
@@ -3490,7 +3490,7 @@ dependencies = [
 [[package]]
 name = "mozjs_utf8_iter"
 version = "153.6.0"
-source = "git+https://github.com/NeoSymbian/mozjs?rev=812fbdfe98ee207edf5cc32804ecbba19f9ec1bc#812fbdfe98ee207edf5cc32804ecbba19f9ec1bc"
+source = "git+https://github.com/NeoSymbian/mozjs?rev=d89d9dc80b60c9c32cb097d7d5cc1e31f265420c#d89d9dc80b60c9c32cb097d7d5cc1e31f265420c"
 dependencies = [
  "mozjs_icu_collections",
 ]

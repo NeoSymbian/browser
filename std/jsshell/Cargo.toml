@@ -12,4 +12,4 @@ crate-type = ["staticlib"]
 e32.workspace = true
 cxxrt = { path = "../cxxrt" }
 # the NeoSymbian/mozjs fork (WB3 commit, mozjs#1 into branch neosymbian): mozjs 0.26.13 / mozjs_sys 153.6.0, Servo 0.8.0's; no JIT, no Intl
-mozjs = { git = "https://github.com/NeoSymbian/mozjs", rev = "812fbdfe98ee207edf5cc32804ecbba19f9ec1bc", default-features = false, features = ["libz-rs"] }
+mozjs = { git = "https://github.com/NeoSymbian/mozjs", rev = "d89d9dc80b60c9c32cb097d7d5cc1e31f265420c", default-features = false, features = ["libz-rs"] }
