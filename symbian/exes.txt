@@ -2,5 +2,5 @@
 # The UI server (neoui SYSSTART) starts it from the Browser tile (host.rs APPS "browser").
 # heap= sets euser's RHeap. e32's no_std Rust allocator grows a separate private chunk (64 MiB reserve).
 NEOWEB.EXE     0xE0007001  libneoweb.a     heap=0x2000000
-# WB2b: built with `cargo arm7`; copy pipsprobe/pipsprobe.cpp and pipsprobe/layout.inc into build/rust/ as well
+# WB2b: built with `cargo arm`; copy pipsprobe/pipsprobe.cpp and pipsprobe/layout.inc into build/rust/ as well
 PIPSPROB.EXE   0xE0007002  libpipsprobe.a     rust/pipsprobe.cpp  libs=libc,libpthread,libm
