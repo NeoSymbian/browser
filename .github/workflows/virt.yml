@@ -46,10 +46,12 @@ jobs:
         with:
           workspaces: browser/std -> target
 
-      # git dependencies are fetched shallow: the workspace's lock names mozjs, webrender... even for these two crates
+      # the workspace narrowed to these two crates (webengine's Servo is a path into a local fork/ checkout; the lock
+      # keeps their versions); git dependencies (the libc, tokio... forks) fetched shallow
       - name: STDTEST and MIXTEST
         working-directory: browser/std
         run: |
+          sed -i 's/^members = .*/members = ["stdtest", "mixtest"]/' Cargo.toml
           cargo sym -p stdtest -p mixtest -Zgit=shallow-deps
           mkdir -p ../../build/rust
           cp target/armv8a-symbian-eabi/release/{libstdtest,libmixtest}.a mixtest/mixtest.cpp ../symbian/pipsprobe/layout.inc ../../build/rust/
