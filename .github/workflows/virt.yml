@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: Apache-2.0
+name: virt
+
+# Rust std on the device (docs browser/wb2-std.md, user-side-smp.md US6a): build STDTEST and MIXTEST (std/, the
+# `neosymbian` toolchain = the pinned nightly with NeoSymbian/rust's library/), link them into the ROM with
+# NeoSymbian/build, boot it on QEMU virt (our AArch64 kernel, 4 Cortex-A55) and run, through fshell, the seven US1 SMP
+# checks three times and MIXTEST (Rust <-> C++ <-> P.I.P.S.). Only logs are uploaded.
+on:
+  push:
+    branches: [main]     # a PR branch runs once, as its pull_request
+    paths: ['std/**', 'symbian/pipsprobe/**', 'tools/neosymbian-toolchain.sh', '.github/workflows/virt.yml']
+  pull_request:
+    paths: ['std/**', 'symbian/pipsprobe/**', 'tools/neosymbian-toolchain.sh', '.github/workflows/virt.yml']
+  workflow_dispatch:
+  # nightly against build's, the kernel's and the forks' heads
+  schedule:
+    - cron: '15 4 * * *'
+
+# a newer push to the same PR cancels its older run; main keeps one result per commit
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  virt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: browser
+
+      - uses: actions/checkout@v4
+        with:
+          repository: NeoSymbian/build
+          path: build
+
+      # the neosymbian toolchain: only library/ of NeoSymbian/rust is read (tools/neosymbian-toolchain.sh)
+      - name: Rust toolchain (neosymbian = the pinned nightly + NeoSymbian/rust's library/)
+        run: |
+          git clone -q --depth 1 --filter=blob:none --sparse --branch neosymbian https://github.com/NeoSymbian/rust.git rust
+          git -C rust sparse-checkout set library
+          browser/tools/neosymbian-toolchain.sh rust
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: browser/std -> target
+
+      # the workspace narrowed to these two crates (webengine's Servo is a path into a local fork/ checkout; the lock
+      # keeps their versions); git dependencies (the libc, tokio... forks) fetched shallow
+      - name: STDTEST and MIXTEST
+        working-directory: browser/std
+        run: |
+          sed -i 's/^members = .*/members = ["stdtest", "mixtest"]/' Cargo.toml
+          cargo sym -p stdtest -p mixtest -Zgit=shallow-deps
+          mkdir -p ../../build/rust
+          cp target/armv8a-symbian-eabi/release/{libstdtest,libmixtest}.a mixtest/mixtest.cpp ../symbian/pipsprobe/layout.inc ../../build/rust/
+          grep -E '^(STDTEST|MIXTEST)\.EXE' exes.txt > ../../build/rust/exes.txt
+
+      - name: Fetch the Symbian sources
+        working-directory: build
+        run: ./fetch.sh
+
+      # the 2010 user side already built for this build commit (build CI publishes it on main), else the full build
+      - name: Prebuilt base (ghcr.io/neosymbian/userside-base:<build commit>)
+        working-directory: build
+        run: |
+          t=ghcr.io/neosymbian/userside-base:$(git rev-parse HEAD)
+          if docker pull -q "$t"; then docker run --rm -v neosymbian-build:/build "$t" cp -a /base/. /build/
+          else echo "no prebuilt base for build $(git rev-parse --short HEAD): the full build"; fi
+
+      - name: Build the ROM with STDTEST and MIXTEST
+        working-directory: build
+        run: ./build.sh
+
+      # no SYSSTART in this ROM: its console is eshell, where the driver starts fshell
+      - name: The AArch64 kernel for QEMU virt, with this user side
+        working-directory: build
+        run: KERNEL=src/oss.FCL.sf.os.kernelhwsrv ./neo kernel qemu
+
+      - name: On virt, the seven SMP checks three times, then MIXTEST
+        working-directory: build
+        shell: bash
+        run: |
+          set -o pipefail
+          . ./images.sh
+          K=$PWD/src/oss.FCL.sf.os.kernelhwsrv
+          SMP="stdtest smp_printf_g smp_condvar_timeout smp_static_init smp_once smp_stdio smp_shared_fd smp_sem_timeout"
+          docker run --rm --user "$(id -u):$(id -g)" -v "$K:/kernel" -v neosymbian-build:/vol:ro \
+            -e OUT=/kernel/out/ekern-qemu "$BUILD_IMAGE" python3 /kernel/baseport/arm64/tools/test-fshell-qemu.py 1200 \
+            --cdrive /vol --run "$SMP" --run "$SMP" --run "$SMP" --run mixtest |
+            tee out/virt.log
+          cp "$K/out/ekern-qemu/serial.log" out/virt-serial.log
+
+      - name: Check the virt output
+        working-directory: build
+        run: |
+          v=out/virt.log s=out/virt-serial.log
+          grep -q '^test-fshell-qemu: PASS$' $v
+          [ "$(grep -c '^test-fshell-qemu: run stdtest smp_printf_g .* -> 0$' $v)" = 3 ]
+          [ "$(cat $v $s | grep -ac 'stdtest: 7 ok, 0 failed, 0 skipped')" -ge 3 ]
+          grep -q '^test-fshell-qemu: run mixtest -> 0$' $v
+          grep -aqh 'mixtest: all ok' $v $s
+          ! grep -aq 'K::Fault\|Kern::Fault' $s
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: virt
+          path: |
+            build/out/log/
+            build/out/virt.log
+            build/out/virt-serial.log
