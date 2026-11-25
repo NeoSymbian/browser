@@ -34,7 +34,7 @@ fn main() {
         "si_class_type_info.o",
         "tinfo.o",
     ];
-    let ok = Command::new(bin.join("armv7-symbian-ar"))
+    let ok = Command::new(bin.join("armv8-symbian-ar"))
         .arg("x")
         .arg(&lib)
         .args(members)
@@ -46,7 +46,7 @@ fn main() {
     );
     let archive = out.join("libcxxrt_stl.a");
     let _ = std::fs::remove_file(&archive);
-    let ok = Command::new(bin.join("armv7-symbian-ar"))
+    let ok = Command::new(bin.join("armv8-symbian-ar"))
         .arg("rcs")
         .arg(&archive)
         .args(members)

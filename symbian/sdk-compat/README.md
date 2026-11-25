@@ -1,6 +1,6 @@
 # sdk-compat
 
-Headers for the `armv7-symbian-*` compilers (`tools/symbian-sdk.sh`): `include/` is searched before libstdc++'s
+Headers for the `armv8-symbian-*` compilers (`tools/symbian-sdk.sh`): `include/` is searched before libstdc++'s
 headers, `c/` between libstdc++'s and P.I.P.S.'s (where `<cmath>`'s `#include_next <math.h>` lands).
 They bridge the Arm GNU toolchain's libstdc++ (configured for newlib) and the 2010 P.I.P.S. C headers, without
 editing either. Each one `#include_next`s the real header and adds or undoes only what differs.

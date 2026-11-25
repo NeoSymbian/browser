@@ -35,8 +35,8 @@ swgl = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" 
 glsl-to-cxx = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
 webrender_build = { git = "https://github.com/NeoSymbian/webrender", branch = "neosymbian" }
 # Servo asks for mozjs =0.26.13 from crates.io: the NeoSymbian/mozjs fork (WB3), as jsshell pins it
-mozjs = { git = "https://github.com/NeoSymbian/mozjs", rev = "d89d9dc80b60c9c32cb097d7d5cc1e31f265420c" }
-mozjs_sys = { git = "https://github.com/NeoSymbian/mozjs", rev = "d89d9dc80b60c9c32cb097d7d5cc1e31f265420c" }
+mozjs = { git = "https://github.com/NeoSymbian/mozjs", rev = "b028449fd28790a6d7a36e8be6f071a7358467dc" }
+mozjs_sys = { git = "https://github.com/NeoSymbian/mozjs", rev = "b028449fd28790a6d7a36e8be6f071a7358467dc" }
 
 [profile.release]
 panic = "abort"

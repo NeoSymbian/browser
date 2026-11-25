@@ -13,10 +13,9 @@ MOZJS_FROM_SOURCE = "1"
 RUST_TARGET_PATH = { value = "targets", relative = true }
 # C and C++ dependencies (sqlite, zlib, zstd, aws-lc, harfbuzz, freetype, swgl...) build with the SDK's wrappers
 # (tools/symbian-sdk.sh): put ~/.local/share/neosymbian-sdk/bin on PATH
-# (the wrappers keep their armv7- names; they carry the ARMv8 flags)
-CC_armv8a_symbian_eabi = "armv7-symbian-gcc"
-CXX_armv8a_symbian_eabi = "armv7-symbian-g++"
-AR_armv8a_symbian_eabi = "armv7-symbian-ar"
+CC_armv8a_symbian_eabi = "armv8-symbian-gcc"
+CXX_armv8a_symbian_eabi = "armv8-symbian-g++"
+AR_armv8a_symbian_eabi = "armv8-symbian-ar"
 LIBZ_SYS_STATIC = "1"
 # aws-lc: seed from the OS (P.I.P.S.'s /dev/urandom = the kernel's secure RNG), not CPU-jitter sampling (its
 # health test aborts here, and it is slow)

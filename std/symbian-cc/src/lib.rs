@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //! For build scripts: a `cc::Build` that compiles C/C++ for `armv8a-symbian-eabi` with the SDK's
-//! `armv7-symbian-{gcc,g++}` (tools/symbian-sdk.sh; `NEOSYMBIAN_SDK` overrides `~/.local/share/neosymbian-sdk`).
+//! `armv8-symbian-{gcc,g++}` (tools/symbian-sdk.sh; `NEOSYMBIAN_SDK` overrides `~/.local/share/neosymbian-sdk`).
 //! The wrappers carry every target flag, so cc's own defaults are off.
 
 use std::path::PathBuf;
@@ -17,7 +17,7 @@ pub fn sdk_bin() -> PathBuf {
     // a new SDK (flags, compat headers) rebuilds the C++
     println!(
         "cargo:rerun-if-changed={}",
-        sdk.join("bin/armv7-symbian-env").display()
+        sdk.join("bin/armv8-symbian-env").display()
     );
     sdk.join("bin")
 }
@@ -29,11 +29,11 @@ pub fn build(cpp: bool) -> cc::Build {
     b.no_default_flags(true)
         .cpp(cpp)
         .compiler(bin.join(if cpp {
-            "armv7-symbian-g++"
+            "armv8-symbian-g++"
         } else {
-            "armv7-symbian-gcc"
+            "armv8-symbian-gcc"
         }))
-        .archiver(bin.join("armv7-symbian-ar"))
+        .archiver(bin.join("armv8-symbian-ar"))
         .flag("-O2");
     if cpp {
         b.flag("-std=gnu++20").flag("-fno-rtti");
