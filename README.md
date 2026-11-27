@@ -1,7 +1,7 @@
 # NeoSymbian browser
 
 A web browser for NeoSymbian, built on [Servo](https://servo.org). Design, decisions and stages (WB0–WB7):
-[docs/browser.md](https://github.com/NeoSymbian/docs/blob/main/browser.md).
+[docs/browser.md](https://github.com/NeoSymbian/docs/blob/main/apps/browser/README.md).
 
 ## WB0: host proof (emulated)
 
